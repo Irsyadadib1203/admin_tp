@@ -13,6 +13,11 @@ import {
   Eye,
   RefreshCw,
   AlertCircle,
+  Code2,
+  Copy,
+  Check,
+  Server,
+  Zap,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -25,6 +30,17 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
+
+  // Response Provider Modal State
+  const [responseModal, setResponseModal] = useState<{
+    isOpen: boolean;
+    tx: any | null;
+    copied: boolean;
+  }>({
+    isOpen: false,
+    tx: null,
+    copied: false,
+  });
 
   // Dialog States
   const [retryModal, setRetryModal] = useState<{
@@ -77,6 +93,39 @@ export default function TransactionsPage() {
       currency: "IDR",
       maximumFractionDigits: 0,
     }).format(val || 0);
+  };
+
+  const formatJSONResponse = (tx: any) => {
+    if (!tx) return "{}";
+    if (tx.provider_callback_data) {
+      try {
+        const parsed = JSON.parse(tx.provider_callback_data);
+        return JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        return tx.provider_callback_data;
+      }
+    }
+    // Fallback constructed provider metadata
+    const fallback = {
+      ref_id: tx.ref_id || "-",
+      provider_status: tx.provider_status || "Pending",
+      provider_message: tx.provider_message || "Menunggu notifikasi webhook provider",
+      serial_number: tx.payment_reference || "-",
+      provider_order_id: tx.provider_order_id || "-",
+      customer_no: tx.customer_id + (tx.server_id ? `(${tx.server_id})` : ""),
+      buyer_sku_code: tx.nominal?.provider_product_code || "-",
+      last_updated: tx.updated_at,
+    };
+    return JSON.stringify(fallback, null, 2);
+  };
+
+  const copyResponseJSON = (tx: any) => {
+    const formatted = formatJSONResponse(tx);
+    navigator.clipboard.writeText(formatted);
+    setResponseModal((prev) => ({ ...prev, copied: true }));
+    setTimeout(() => {
+      setResponseModal((prev) => ({ ...prev, copied: false }));
+    }, 2000);
   };
 
   const handleRetryPrompt = (tx: any) => {
@@ -161,7 +210,7 @@ export default function TransactionsPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Pusat Transaksi Top-Up</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Monitoring dan eksekusi transaksi pelanggan, H2H, dan status provider
+            Monitoring dan eksekusi transaksi pelanggan, H2H, serta respon realtime provider
           </p>
         </div>
 
@@ -218,6 +267,7 @@ export default function TransactionsPage() {
                 <th className="py-3.5 px-4">Total Bayar</th>
                 <th className="py-3.5 px-4">Laba (Margin)</th>
                 <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4">Response Provider</th>
                 <th className="py-3.5 px-5 text-right">Aksi</th>
               </tr>
             </thead>
@@ -273,6 +323,19 @@ export default function TransactionsPage() {
                         {tx.status.toUpperCase()}
                       </span>
                     </td>
+
+                    {/* Response Provider Column */}
+                    <td className="py-3.5 px-4">
+                      <button
+                        onClick={() => setResponseModal({ isOpen: true, tx, copied: false })}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 border border-indigo-500/25 text-[11px] font-medium transition-all shadow-sm group"
+                        title="Klik untuk melihat Raw JSON Response Provider / Callback"
+                      >
+                        <Code2 className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                        <span>Response JSON</span>
+                      </button>
+                    </td>
+
                     <td className="py-3.5 px-5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
@@ -313,7 +376,7 @@ export default function TransactionsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
                     {isLoading ? "Memuat transaksi..." : "Tidak ada data transaksi."}
                   </td>
                 </tr>
@@ -322,6 +385,142 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+
+      {/* Response Provider JSON Modal */}
+      {responseModal.isOpen && responseModal.tx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Response Provider (Digiflazz / Gateway)
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs font-mono font-bold text-indigo-400">
+                      {responseModal.tx.invoice_number}
+                    </span>
+                    <span className="text-[11px] text-slate-500">•</span>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      RefID: {responseModal.tx.ref_id || "-"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setResponseModal({ isOpen: false, tx: null, copied: false })}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Metadata Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Status Provider:</span>
+                <span
+                  className={`font-bold font-mono text-xs ${
+                    responseModal.tx.provider_status === "Sukses" || responseModal.tx.status === "success"
+                      ? "text-emerald-400"
+                      : responseModal.tx.provider_status === "Gagal" || responseModal.tx.status === "failed"
+                      ? "text-rose-400"
+                      : "text-amber-400"
+                  }`}
+                >
+                  {responseModal.tx.provider_status || (responseModal.tx.status === "success" ? "Sukses" : "Pending")}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Serial Number (SN):</span>
+                <span className="font-mono text-xs text-slate-200 truncate block" title={responseModal.tx.payment_reference}>
+                  {responseModal.tx.payment_reference || "-"}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Item / SKU:</span>
+                <span className="font-semibold text-xs text-slate-200 truncate block">
+                  {responseModal.tx.nominal?.name || "-"}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Tujuan Akun:</span>
+                <span className="font-mono text-xs text-emerald-400 truncate block">
+                  {responseModal.tx.customer_id}
+                  {responseModal.tx.server_id ? ` (${responseModal.tx.server_id})` : ""}
+                </span>
+              </div>
+            </div>
+
+            {/* Raw JSON Code Container */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Code2 className="w-4 h-4 text-indigo-400" />
+                  Payload JSON Asli (Callback / API Response):
+                </span>
+                <button
+                  onClick={() => copyResponseJSON(responseModal.tx)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition-colors shadow-sm"
+                >
+                  {responseModal.copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-bold">Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Salin JSON</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
+                <pre className="p-4 text-xs font-mono text-emerald-400 overflow-x-auto max-h-72 leading-relaxed selection:bg-indigo-500 selection:text-white">
+                  {formatJSONResponse(responseModal.tx)}
+                </pre>
+              </div>
+            </div>
+
+            {/* Footer Note & Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <p className="text-[11px] text-slate-500">
+                Respon disimpan otomatis saat Digiflazz mengirim callback webhook atau saat retry admin.
+              </p>
+              <div className="flex items-center gap-2">
+                {responseModal.tx.status !== "success" && (
+                  <button
+                    onClick={() => {
+                      const tx = responseModal.tx;
+                      setResponseModal({ isOpen: false, tx: null, copied: false });
+                      handleRetryPrompt(tx);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Retry Provider
+                  </button>
+                )}
+                <button
+                  onClick={() => setResponseModal({ isOpen: false, tx: null, copied: false })}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transaction Detail Modal */}
       {selectedTx && (
@@ -390,6 +589,18 @@ export default function TransactionsPage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  const tx = selectedTx;
+                  setSelectedTx(null);
+                  setResponseModal({ isOpen: true, tx, copied: false });
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Code2 className="w-3.5 h-3.5 text-indigo-400" />
+                Lihat Response JSON
+              </button>
+
               {selectedTx.status !== "success" && (
                 <>
                   <button
