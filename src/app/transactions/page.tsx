@@ -96,7 +96,7 @@ export default function TransactionsPage() {
   };
 
   const calculateSpeed = (tx: any) => {
-    if (!tx) return "00.00.00";
+    if (!tx) return "00.00.00.00";
     const startTime = new Date(tx.payment_verified_at || tx.created_at).getTime();
     const endTime = tx.completed_at
       ? new Date(tx.completed_at).getTime()
@@ -105,7 +105,7 @@ export default function TransactionsPage() {
       : (tx.status === "processing" || tx.status === "pending" ? Date.now() : null);
 
     if (!startTime || !endTime || endTime < startTime) {
-      return "00.00.00";
+      return "00.00.00.00";
     }
 
     const diffMs = Math.max(0, endTime - startTime);
@@ -117,11 +117,7 @@ export default function TransactionsPage() {
 
     const pad = (n: number) => n.toString().padStart(2, "0");
 
-    if (hours > 0) {
-      return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}`;
-    }
-
-    return `${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
+    return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
   };
 
   const formatJSONResponse = (tx: any) => {
