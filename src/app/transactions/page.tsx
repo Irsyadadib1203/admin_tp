@@ -95,6 +95,35 @@ export default function TransactionsPage() {
     }).format(val || 0);
   };
 
+  const calculateSpeed = (tx: any) => {
+    if (!tx) return "00.00.00";
+    const startTime = new Date(tx.payment_verified_at || tx.created_at).getTime();
+    const endTime = tx.completed_at
+      ? new Date(tx.completed_at).getTime()
+      : tx.status === "success" || tx.status === "failed" || tx.status === "refunded"
+      ? new Date(tx.updated_at).getTime()
+      : (tx.status === "processing" || tx.status === "pending" ? Date.now() : null);
+
+    if (!startTime || !endTime || endTime < startTime) {
+      return "00.00.00";
+    }
+
+    const diffMs = Math.max(0, endTime - startTime);
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const ms = Math.floor((diffMs % 1000) / 10); // 2-digit ms (00-99)
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+
+    if (hours > 0) {
+      return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}`;
+    }
+
+    return `${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
+  };
+
   const formatJSONResponse = (tx: any) => {
     if (!tx) return "{}";
     if (tx.provider_callback_data) {
@@ -265,7 +294,7 @@ export default function TransactionsPage() {
                 <th className="py-3.5 px-4">Game & Nominal</th>
                 <th className="py-3.5 px-4">Tujuan Akun</th>
                 <th className="py-3.5 px-4">Total Bayar</th>
-                <th className="py-3.5 px-4">Laba (Margin)</th>
+                <th className="py-3.5 px-4">Speed</th>
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4">Response Provider</th>
                 <th className="py-3.5 px-5 text-right">Aksi</th>
@@ -305,8 +334,25 @@ export default function TransactionsPage() {
                     <td className="py-3.5 px-4 font-semibold text-slate-100">
                       {formatRupiah(tx.total_amount)}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-emerald-400">
-                      {formatRupiah(tx.profit)}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5 font-mono text-xs font-semibold">
+                        {tx.status === "success" ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 shadow-sm">
+                            <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                            {calculateSpeed(tx)}
+                          </span>
+                        ) : tx.status === "processing" || tx.status === "pending" ? (
+                          <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                            <Clock className="w-3 h-3 animate-spin" />
+                            {calculateSpeed(tx)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700/60">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            {calculateSpeed(tx)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <span
@@ -575,7 +621,13 @@ export default function TransactionsPage() {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <span className="text-slate-400 block">Status Provider Digiflazz:</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 block">Status Provider Digiflazz:</span>
+                  <span className="text-[11px] text-indigo-300 font-mono font-bold flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                    <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                    {calculateSpeed(selectedTx)}
+                  </span>
+                </div>
                 <span className="font-semibold text-amber-300 block">
                   {selectedTx.provider_status || "Pending"}
                 </span>
