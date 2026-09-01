@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { createPortal } from "react-dom";
 import { CreditCard, Edit2, Check, X, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -15,6 +17,17 @@ export default function PaymentMethodsPage() {
     updated: string[];
     skipped: string[];
   } | null>(null);
+
+  // Confirm states
+  const [confirmEdit, setConfirmEdit] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
+
+  const [confirmSync, setConfirmSync] = useState(false);
 
   const { data: methods, mutate, isLoading } = useSWR(
     "/admin/payment-methods",
@@ -29,18 +42,27 @@ export default function PaymentMethodsPage() {
     }).format(val || 0);
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setConfirmEdit({ isOpen: true, isLoading: false });
+  };
+
+  const executeUpdate = async () => {
+    if (!editingMethod) return;
+    setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
     try {
       await api.put(`/admin/payment-methods/${editingMethod.id}`, editingMethod);
+      setConfirmEdit({ isOpen: false, isLoading: false });
       setEditingMethod(null);
       mutate();
     } catch (err: any) {
-      alert("Gagal update payment method: " + err.message);
+      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal update payment method: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleSync = async () => {
+  const executeSync = async () => {
+    setConfirmSync(false);
     setSyncing(true);
     setSyncResult(null);
     try {
@@ -71,7 +93,7 @@ export default function PaymentMethodsPage() {
         </div>
 
         <button
-          onClick={handleSync}
+          onClick={() => setConfirmSync(true)}
           disabled={syncing}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-colors"
         >
@@ -181,105 +203,142 @@ export default function PaymentMethodsPage() {
       </div>
 
       {/* Edit Modal */}
-      {editingMethod && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">
-              Edit Metode: {editingMethod.name}
-            </h3>
+      {editingMethod &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">
+                Edit Metode: {editingMethod.name}
+              </h3>
 
-            <form onSubmit={handleUpdate} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Biaya Flat (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      value={editingMethod.fixed_fee}
+                      onChange={(e) =>
+                        setEditingMethod({
+                          ...editingMethod,
+                          fixed_fee: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Biaya Persen (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={editingMethod.percent_fee}
+                      onChange={(e) =>
+                        setEditingMethod({
+                          ...editingMethod,
+                          percent_fee: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    Biaya Flat (Rp)
+                    Instruksi Pembayaran Singkat
                   </label>
-                  <input
-                    type="number"
-                    value={editingMethod.fixed_fee}
+                  <textarea
+                    rows={3}
+                    value={editingMethod.instructions || ""}
                     onChange={(e) =>
                       setEditingMethod({
                         ...editingMethod,
-                        fixed_fee: parseFloat(e.target.value) || 0,
+                        instructions: e.target.value,
                       })
                     }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Biaya Persen (%)
-                  </label>
+                <div className="flex items-center gap-2 pt-1">
                   <input
-                    type="number"
-                    step="0.1"
-                    value={editingMethod.percent_fee}
+                    type="checkbox"
+                    id="pm_active"
+                    checked={editingMethod.is_active}
                     onChange={(e) =>
                       setEditingMethod({
                         ...editingMethod,
-                        percent_fee: parseFloat(e.target.value) || 0,
+                        is_active: e.target.checked,
                       })
                     }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
                   />
+                  <label htmlFor="pm_active" className="text-slate-300 font-medium cursor-pointer">
+                    Aktifkan saluran pembayaran ini
+                  </label>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Instruksi Pembayaran Singkat
-                </label>
-                <textarea
-                  rows={3}
-                  value={editingMethod.instructions || ""}
-                  onChange={(e) =>
-                    setEditingMethod({
-                      ...editingMethod,
-                      instructions: e.target.value,
-                    })
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMethod(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="pm_active"
-                  checked={editingMethod.is_active}
-                  onChange={(e) =>
-                    setEditingMethod({
-                      ...editingMethod,
-                      is_active: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
-                />
-                <label htmlFor="pm_active" className="text-slate-300 font-medium cursor-pointer">
-                  Aktifkan saluran pembayaran ini
-                </label>
-              </div>
+      {/* Confirmation Modal - Edit Payment Method */}
+      <ConfirmModal
+        isOpen={confirmEdit.isOpen}
+        onClose={() => setConfirmEdit({ isOpen: false, isLoading: false })}
+        onConfirm={executeUpdate}
+        title="Simpan Perubahan Biaya Pembayaran?"
+        message={
+          <>
+            Apakah Anda yakin ingin memperbarui konfigurasi biaya untuk metode{" "}
+            <strong className="text-white font-semibold">{editingMethod?.name}</strong>?
+          </>
+        }
+        confirmText="Ya, Simpan"
+        cancelText="Periksa Lagi"
+        variant="primary"
+        isLoading={confirmEdit.isLoading}
+      />
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setEditingMethod(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  Simpan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Confirmation Modal - Sync Tripay */}
+      <ConfirmModal
+        isOpen={confirmSync}
+        onClose={() => setConfirmSync(false)}
+        onConfirm={executeSync}
+        title="Sinkronisasi Saluran Tripay?"
+        message={
+          <>
+            Sistem akan mengambil daftar channel pembayaran terbaru dari akun Tripay Anda dan memperbarui status saluran yang tersedia.
+          </>
+        }
+        confirmText="Ya, Sinkronkan"
+        cancelText="Batal"
+        variant="primary"
+        isLoading={syncing}
+      />
     </div>
   );
 }

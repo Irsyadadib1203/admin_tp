@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { createPortal } from "react-dom";
 import {
   Gamepad2,
   Plus,
@@ -10,10 +11,10 @@ import {
   Check,
   X,
   Search,
-  CheckCircle2,
   Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -21,6 +22,27 @@ export default function GamesPage() {
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<any | null>(null);
+
+  // Confirm Modal state
+  const [confirmDelete, setConfirmDelete] = useState<{
+    isOpen: boolean;
+    gameId: number | null;
+    gameName: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    gameId: null,
+    gameName: "",
+    isLoading: false,
+  });
+
+  const [confirmEdit, setConfirmEdit] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -84,29 +106,52 @@ export default function GamesPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingGame) {
+      // Show edit confirmation
+      setConfirmEdit({ isOpen: true, isLoading: false });
+    } else {
+      executeSave();
+    }
+  };
+
+  const executeSave = async () => {
     try {
       if (editingGame) {
+        setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
         await api.put(`/admin/games/${editingGame.id}`, formData);
+        setConfirmEdit({ isOpen: false, isLoading: false });
       } else {
         await api.post("/admin/games", formData);
       }
       setIsModalOpen(false);
       mutate();
     } catch (err: any) {
+      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
       alert("Error: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Hapus game ${name}? Semua nominal terkait juga akan dihapus.`))
-      return;
+  const promptDelete = (id: number, name: string) => {
+    setConfirmDelete({
+      isOpen: true,
+      gameId: id,
+      gameName: name,
+      isLoading: false,
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete.gameId) return;
+    setConfirmDelete((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.delete(`/admin/games/${id}`);
+      await api.delete(`/admin/games/${confirmDelete.gameId}`);
+      setConfirmDelete({ isOpen: false, gameId: null, gameName: "", isLoading: false });
       mutate();
     } catch (err: any) {
-      alert("Gagal menghapus game: " + err.message);
+      setConfirmDelete((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal menghapus game: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -225,7 +270,7 @@ export default function GamesPage() {
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(g.id, g.name)}
+                          onClick={() => promptDelete(g.id, g.name)}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
                           title="Hapus Game"
                         >
@@ -248,162 +293,206 @@ export default function GamesPage() {
       </div>
 
       {/* Modal Add / Edit Game */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">
-              {editingGame ? "Edit Game" : "Tambah Game Baru"}
-            </h3>
+      {isModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">
+                {editingGame ? "Edit Game: " + editingGame.name : "Tambah Game Baru"}
+              </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Nama Game *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Mobile Legends: Bang Bang"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    Kategori
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="Games">Games</option>
-                    <option value="Voucher">Voucher</option>
-                    <option value="Entertainment">Entertainment</option>
-                    <option value="Pulsa & PLN">Pulsa & PLN</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Publisher
+                    Nama Game *
                   </label>
                   <input
                     type="text"
-                    placeholder="Moonton / Garena"
-                    value={formData.publisher}
+                    required
+                    placeholder="Contoh: Mobile Legends: Bang Bang"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Kategori
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="Games">Games</option>
+                      <option value="Voucher">Voucher</option>
+                      <option value="Entertainment">Entertainment</option>
+                      <option value="Pulsa & PLN">Pulsa & PLN</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Publisher
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Moonton / Garena"
+                      value={formData.publisher}
+                      onChange={(e) =>
+                        setFormData({ ...formData, publisher: e.target.value })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    URL Gambar Thumbnail
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://.../mlbb.jpg"
+                    value={formData.image_url}
                     onChange={(e) =>
-                      setFormData({ ...formData, publisher: e.target.value })
+                      setFormData({ ...formData, image_url: e.target.value })
                     }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  URL Gambar Thumbnail
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://.../mlbb.jpg"
-                  value={formData.image_url}
-                  onChange={(e) =>
-                    setFormData({ ...formData, image_url: e.target.value })
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
+                  <h4 className="font-semibold text-slate-300">
+                    Konfigurasi Validasi Nickname
+                  </h4>
 
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
-                <h4 className="font-semibold text-slate-300">
-                  Konfigurasi Validasi Nickname
-                </h4>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-400 mb-1">Checker Engine</label>
-                    <select
-                      value={formData.nickname_check_code}
-                      onChange={(e) =>
-                        setFormData({ ...formData, nickname_check_code: e.target.value })
-                      }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none"
-                    >
-                      <option value="">(Nonaktifkan)</option>
-                      <option value="MOBILE_LEGENDS">Mobile Legends (ID + Zone)</option>
-                      <option value="FREE_FIRE">Free Fire (User ID)</option>
-                      <option value="GENSHIN_IMPACT">Genshin Impact (UID)</option>
-                      <option value="PUBG_MOBILE">PUBG Mobile</option>
-                      <option value="VALORANT">Valorant (Riot ID)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1">Perlu Server / Zone ID?</label>
-                    <select
-                      value={formData.has_zone_id ? "true" : "false"}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          has_zone_id: e.target.value === "true",
-                        })
-                      }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none"
-                    >
-                      <option value="false">Tidak (Hanya User ID)</option>
-                      <option value="true">Ya (Perlu Zone / Server ID)</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Checker Engine</label>
+                      <select
+                        value={formData.nickname_check_code}
+                        onChange={(e) =>
+                          setFormData({ ...formData, nickname_check_code: e.target.value })
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none"
+                      >
+                        <option value="">(Nonaktifkan)</option>
+                        <option value="MOBILE_LEGENDS">Mobile Legends (ID + Zone)</option>
+                        <option value="FREE_FIRE">Free Fire (User ID)</option>
+                        <option value="GENSHIN_IMPACT">Genshin Impact (UID)</option>
+                        <option value="PUBG_MOBILE">PUBG Mobile</option>
+                        <option value="VALORANT">Valorant (Riot ID)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Perlu Server / Zone ID?</label>
+                      <select
+                        value={formData.has_zone_id ? "true" : "false"}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            has_zone_id: e.target.value === "true",
+                          })
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none"
+                      >
+                        <option value="false">Tidak (Hanya User ID)</option>
+                        <option value="true">Ya (Perlu Zone / Server ID)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_active: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
-                  />
-                  <span className="text-slate-300 font-medium">Aktifkan Game</span>
-                </label>
+                <div className="flex items-center gap-6 pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active}
+                      onChange={(e) =>
+                        setFormData({ ...formData, is_active: e.target.checked })
+                      }
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    />
+                    <span className="text-slate-300 font-medium">Aktifkan Game</span>
+                  </label>
 
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_popular}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_popular: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
-                  />
-                  <span className="text-slate-300 font-medium">Tampilkan di Populer</span>
-                </label>
-              </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_popular}
+                      onChange={(e) =>
+                        setFormData({ ...formData, is_popular: e.target.checked })
+                      }
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    />
+                    <span className="text-slate-300 font-medium">Tampilkan di Populer</span>
+                  </label>
+                </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  {editingGame ? "Simpan Perubahan" : "Buat Game"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    {editingGame ? "Simpan Perubahan" : "Buat Game"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Confirmation Modal - Delete Game */}
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() =>
+          setConfirmDelete({ isOpen: false, gameId: null, gameName: "", isLoading: false })
+        }
+        onConfirm={executeDelete}
+        title="Hapus Game & Produk?"
+        message={
+          <>
+            Apakah Anda yakin ingin menghapus game{" "}
+            <strong className="text-white font-semibold">{confirmDelete.gameName}</strong>?
+            <br />
+            <span className="text-rose-400 mt-1 block font-medium">
+              Peringatan: Semua item nominal dan SKU yang terhubung dengan game ini juga akan dihapus.
+            </span>
+          </>
+        }
+        confirmText="Ya, Hapus Game"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={confirmDelete.isLoading}
+      />
+
+      {/* Confirmation Modal - Edit Game */}
+      <ConfirmModal
+        isOpen={confirmEdit.isOpen}
+        onClose={() => setConfirmEdit({ isOpen: false, isLoading: false })}
+        onConfirm={executeSave}
+        title="Simpan Perubahan Game?"
+        message={
+          <>
+            Apakah Anda yakin ingin memperbarui data game{" "}
+            <strong className="text-white font-semibold">{formData.name}</strong>?
+          </>
+        }
+        confirmText="Ya, Simpan"
+        cancelText="Periksa Lagi"
+        variant="primary"
+        isLoading={confirmEdit.isLoading}
+      />
     </div>
   );
 }

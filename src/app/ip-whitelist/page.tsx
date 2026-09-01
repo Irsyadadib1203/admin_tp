@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -29,6 +30,37 @@ export default function IPWhitelistPage() {
   const [blockIP, setBlockIP] = useState("");
   const [blockReason, setBlockReason] = useState("Spam / Percobaan akses ilegal");
   const [blockHours, setBlockHours] = useState(24);
+
+  // Confirm states
+  const [confirmDeleteWhitelist, setConfirmDeleteWhitelist] = useState<{
+    isOpen: boolean;
+    ipId: number | null;
+    ipAddress: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    ipId: null,
+    ipAddress: "",
+    isLoading: false,
+  });
+
+  const [confirmBlock, setConfirmBlock] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
+
+  const [confirmUnblock, setConfirmUnblock] = useState<{
+    isOpen: boolean;
+    ipAddress: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    ipAddress: "",
+    isLoading: false,
+  });
 
   // Data fetching
   const { data: whitelists, mutate: refreshWhitelists } = useSWR(
@@ -60,40 +92,70 @@ export default function IPWhitelistPage() {
     }
   };
 
-  const handleDeleteWhitelist = async (id: number, ip: string) => {
-    if (!confirm(`Hapus IP ${ip} dari daftar whitelist?`)) return;
+  const promptDeleteWhitelist = (id: number, ip: string) => {
+    setConfirmDeleteWhitelist({
+      isOpen: true,
+      ipId: id,
+      ipAddress: ip,
+      isLoading: false,
+    });
+  };
+
+  const executeDeleteWhitelist = async () => {
+    if (!confirmDeleteWhitelist.ipId) return;
+    setConfirmDeleteWhitelist((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.delete(`/admin/ip-whitelist/${id}`);
+      await api.delete(`/admin/ip-whitelist/${confirmDeleteWhitelist.ipId}`);
+      setConfirmDeleteWhitelist({ isOpen: false, ipId: null, ipAddress: "", isLoading: false });
       refreshWhitelists();
     } catch (err: any) {
+      setConfirmDeleteWhitelist((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal menghapus IP: " + err.message);
     }
   };
 
-  const handleBlockIP = async (e: React.FormEvent) => {
+  const handleBlockSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setConfirmBlock({ isOpen: true, isLoading: false });
+  };
+
+  const executeBlockIP = async () => {
+    setConfirmBlock((prev) => ({ ...prev, isLoading: true }));
     try {
       await api.post("/admin/watchlist/block", {
         ip_address: blockIP,
         reason: blockReason,
         hours: blockHours,
       });
+      setConfirmBlock({ isOpen: false, isLoading: false });
       setIsBlockModalOpen(false);
       setBlockIP("");
       refreshWatchlist();
       refreshLogs();
     } catch (err: any) {
+      setConfirmBlock((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal memblokir IP: " + err.message);
     }
   };
 
-  const handleUnblockIP = async (ip: string) => {
-    if (!confirm(`Buka blokir untuk IP ${ip}?`)) return;
+  const promptUnblockIP = (ip: string) => {
+    setConfirmUnblock({
+      isOpen: true,
+      ipAddress: ip,
+      isLoading: false,
+    });
+  };
+
+  const executeUnblockIP = async () => {
+    if (!confirmUnblock.ipAddress) return;
+    setConfirmUnblock((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post("/admin/watchlist/unblock", { ip_address: ip });
+      await api.post("/admin/watchlist/unblock", { ip_address: confirmUnblock.ipAddress });
+      setConfirmUnblock({ isOpen: false, ipAddress: "", isLoading: false });
       refreshWatchlist();
       refreshLogs();
     } catch (err: any) {
+      setConfirmUnblock((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal membuka blokir: " + err.message);
     }
   };
@@ -191,7 +253,7 @@ export default function IPWhitelistPage() {
                       </td>
                       <td className="py-3.5 px-5 text-right">
                         <button
-                          onClick={() => handleDeleteWhitelist(item.id, item.ip_address)}
+                          onClick={() => promptDeleteWhitelist(item.id, item.ip_address)}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
                           title="Hapus IP"
                         >
@@ -266,7 +328,7 @@ export default function IPWhitelistPage() {
                       <td className="py-3.5 px-5 text-right">
                         {w.is_blocked && (
                           <button
-                            onClick={() => handleUnblockIP(w.ip_address)}
+                            onClick={() => promptUnblockIP(w.ip_address)}
                             className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[11px] font-semibold transition-colors inline-flex items-center gap-1"
                           >
                             <Unlock className="w-3 h-3" /> Buka Blokir
@@ -418,7 +480,7 @@ export default function IPWhitelistPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <h3 className="text-lg font-bold text-white">Blokir IP Address</h3>
-            <form onSubmit={handleBlockIP} className="space-y-3.5 text-xs">
+            <form onSubmit={handleBlockSubmit} className="space-y-3.5 text-xs">
               <div>
                 <label className="block text-slate-300 font-medium mb-1">
                   Alamat IP yang Diblokir *
@@ -480,6 +542,66 @@ export default function IPWhitelistPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal - Delete Whitelist IP */}
+      <ConfirmModal
+        isOpen={confirmDeleteWhitelist.isOpen}
+        onClose={() =>
+          setConfirmDeleteWhitelist({ isOpen: false, ipId: null, ipAddress: "", isLoading: false })
+        }
+        onConfirm={executeDeleteWhitelist}
+        title="Hapus IP dari Whitelist?"
+        message={
+          <>
+            Apakah Anda yakin ingin menghapus IP{" "}
+            <strong className="text-white font-mono">{confirmDeleteWhitelist.ipAddress}</strong> dari daftar whitelist?
+            <br />
+            <span className="text-amber-400 text-[11px] mt-1 block">
+              Mitra atau server dengan IP ini tidak akan dapat mengakses API H2H lagi sampai didaftarkan kembali.
+            </span>
+          </>
+        }
+        confirmText="Ya, Hapus IP"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={confirmDeleteWhitelist.isLoading}
+      />
+
+      {/* Confirmation Modal - Block IP */}
+      <ConfirmModal
+        isOpen={confirmBlock.isOpen}
+        onClose={() => setConfirmBlock({ isOpen: false, isLoading: false })}
+        onConfirm={executeBlockIP}
+        title="Konfirmasi Pemblokiran IP"
+        message={
+          <>
+            Anda akan memblokir IP <strong className="text-rose-400 font-mono">{blockIP}</strong> selama{" "}
+            <strong>{blockHours === 0 ? "Permanen" : `${blockHours} jam`}</strong> dengan alasan: &ldquo;{blockReason}&rdquo;.
+          </>
+        }
+        confirmText="Ya, Blokir IP"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={confirmBlock.isLoading}
+      />
+
+      {/* Confirmation Modal - Unblock IP */}
+      <ConfirmModal
+        isOpen={confirmUnblock.isOpen}
+        onClose={() => setConfirmUnblock({ isOpen: false, ipAddress: "", isLoading: false })}
+        onConfirm={executeUnblockIP}
+        title="Buka Blokir IP?"
+        message={
+          <>
+            Apakah Anda yakin ingin membuka blokir untuk IP{" "}
+            <strong className="text-emerald-400 font-mono">{confirmUnblock.ipAddress}</strong>?
+          </>
+        }
+        confirmText="Buka Blokir"
+        cancelText="Batal"
+        variant="success"
+        isLoading={confirmUnblock.isLoading}
+      />
     </div>
   );
 }

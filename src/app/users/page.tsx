@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { createPortal } from "react-dom";
 import { Users, Plus, Edit2, Key, Wallet, Shield, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -12,6 +14,23 @@ export default function UsersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+
+  // Confirmation states
+  const [confirmEdit, setConfirmEdit] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
+
+  const [confirmCreate, setConfirmCreate] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
 
   const { data: users, mutate, isLoading } = useSWR(
     `/admin/users?role=${roleFilter}`,
@@ -52,8 +71,14 @@ export default function UsersPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateUser = async (e: React.FormEvent) => {
+  const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setConfirmEdit({ isOpen: true, isLoading: false });
+  };
+
+  const executeUpdateUser = async () => {
+    if (!selectedUser) return;
+    setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
     try {
       await api.put(`/admin/users/${selectedUser.id}`, {
         name: formData.name,
@@ -62,20 +87,33 @@ export default function UsersPage() {
         balance_adjustment: formData.balance_adjustment,
         adjustment_reason: formData.adjustment_reason,
       });
+      setConfirmEdit({ isOpen: false, isLoading: false });
       setIsEditModalOpen(false);
       mutate();
     } catch (err: any) {
+      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal update user: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.role === "admin" || formData.role === "superadmin") {
+      setConfirmCreate({ isOpen: true, isLoading: false });
+    } else {
+      executeCreateUser();
+    }
+  };
+
+  const executeCreateUser = async () => {
+    setConfirmCreate((prev) => ({ ...prev, isLoading: true }));
     try {
       await api.post("/admin/users", formData);
+      setConfirmCreate({ isOpen: false, isLoading: false });
       setIsCreateModalOpen(false);
       mutate();
     } catch (err: any) {
+      setConfirmCreate((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal tambah user: " + (err.response?.data?.message || err.message));
     }
   };
@@ -214,218 +252,267 @@ export default function UsersPage() {
       </div>
 
       {/* Modal Edit User & Balance */}
-      {isEditModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">
-              Edit Pengguna & Saldo: {selectedUser.name}
-            </h3>
+      {isEditModalOpen && selectedUser &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">
+                Edit Pengguna & Saldo: {selectedUser.name}
+              </h3>
 
-            <form onSubmit={handleUpdateUser} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Nama Lengkap
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    Role Akun
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
-                  >
-                    <option value="member">Member</option>
-                    <option value="reseller">Reseller H2H</option>
-                    <option value="operator">Operator</option>
-                    <option value="admin">Admin</option>
-                    <option value="superadmin">Superadmin</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Tier Harga
-                  </label>
-                  <select
-                    value={formData.tier}
-                    onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
-                  >
-                    <option value="public">Publik</option>
-                    <option value="member">Member</option>
-                    <option value="vip">VIP</option>
-                    <option value="reseller">Reseller H2H</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Balance Adjustment Section */}
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
-                <span className="text-[11px] font-bold text-amber-400 block">
-                  Penyesuaian Saldo Akun (Saat ini: {formatRupiah(selectedUser.balance)})
-                </span>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">
-                    Tambah (+) atau Kurang (-) Saldo Rp
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.balance_adjustment}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        balance_adjustment: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="0"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 font-semibold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">
-                    Keterangan Mutasi
+                    Nama Lengkap
                   </label>
                   <input
                     type="text"
-                    value={formData.adjustment_reason}
-                    onChange={(e) =>
-                      setFormData({ ...formData, adjustment_reason: e.target.value })
-                    }
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  Simpan Perubahan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Role Akun
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
+                    >
+                      <option value="member">Member</option>
+                      <option value="reseller">Reseller H2H</option>
+                      <option value="operator">Operator</option>
+                      <option value="admin">Admin</option>
+                      <option value="superadmin">Superadmin</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Tier Harga
+                    </label>
+                    <select
+                      value={formData.tier}
+                      onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
+                    >
+                      <option value="public">Publik</option>
+                      <option value="member">Member</option>
+                      <option value="vip">VIP</option>
+                      <option value="reseller">Reseller H2H</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Balance Adjustment Section */}
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                  <span className="text-[11px] font-bold text-amber-400 block">
+                    Penyesuaian Saldo Akun (Saat ini: {formatRupiah(selectedUser.balance)})
+                  </span>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">
+                      Tambah (+) atau Kurang (-) Saldo Rp
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.balance_adjustment}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          balance_adjustment: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="0"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 font-semibold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">
+                      Keterangan Mutasi
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.adjustment_reason}
+                      onChange={(e) =>
+                        setFormData({ ...formData, adjustment_reason: e.target.value })
+                      }
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    Simpan Perubahan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal Create User */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">Tambah Pengguna Baru</h3>
-            <form onSubmit={handleCreateUser} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Nama Lengkap *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+      {isCreateModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">Tambah Pengguna Baru</h3>
+              <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    Role Akun
+                    Nama Lengkap *
                   </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
-                  >
-                    <option value="member">Member</option>
-                    <option value="reseller">Reseller H2H</option>
-                    <option value="operator">Operator</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    Tier Harga
+                    Email *
                   </label>
-                  <select
-                    value={formData.tier}
-                    onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
-                  >
-                    <option value="public">Publik</option>
-                    <option value="member">Member</option>
-                    <option value="vip">VIP</option>
-                    <option value="reseller">Reseller H2H</option>
-                  </select>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  Buat Pengguna
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Role Akun
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
+                    >
+                      <option value="member">Member</option>
+                      <option value="reseller">Reseller H2H</option>
+                      <option value="operator">Operator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Tier Harga
+                    </label>
+                    <select
+                      value={formData.tier}
+                      onChange={(e) => setFormData({ ...formData, tier: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none"
+                    >
+                      <option value="public">Publik</option>
+                      <option value="member">Member</option>
+                      <option value="vip">VIP</option>
+                      <option value="reseller">Reseller H2H</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    Buat Pengguna
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Confirmation Modal - Edit User / Balance Adjustment */}
+      <ConfirmModal
+        isOpen={confirmEdit.isOpen}
+        onClose={() => setConfirmEdit({ isOpen: false, isLoading: false })}
+        onConfirm={executeUpdateUser}
+        title="Simpan Perubahan Akun & Saldo?"
+        message={
+          <>
+            Perubahan untuk akun <strong className="text-white">{selectedUser?.name}</strong>:
+            <ul className="mt-2 space-y-1 text-slate-300">
+              <li>• Role: <span className="font-semibold text-indigo-300 uppercase">{formData.role}</span></li>
+              <li>• Tier: <span className="font-semibold text-indigo-300 uppercase">{formData.tier}</span></li>
+              {formData.balance_adjustment !== 0 && (
+                <li className="text-amber-400 font-bold">
+                  • Penyesuaian Saldo: {formData.balance_adjustment > 0 ? "+" : ""}{formatRupiah(formData.balance_adjustment)}
+                </li>
+              )}
+            </ul>
+          </>
+        }
+        confirmText="Ya, Simpan Perubahan"
+        cancelText="Periksa Lagi"
+        variant={formData.balance_adjustment !== 0 ? "warning" : "primary"}
+        isLoading={confirmEdit.isLoading}
+      />
+
+      {/* Confirmation Modal - Create Admin User */}
+      <ConfirmModal
+        isOpen={confirmCreate.isOpen}
+        onClose={() => setConfirmCreate({ isOpen: false, isLoading: false })}
+        onConfirm={executeCreateUser}
+        title="Buat Akun dengan Hak Akses Istimewa?"
+        message={
+          <>
+            Anda akan membuat akun dengan role <strong className="text-rose-400 uppercase font-bold">{formData.role}</strong> untuk email <strong className="text-white">{formData.email}</strong>.
+            <br />
+            Akun ini akan memiliki hak akses ke panel pengelolaan sistem.
+          </>
+        }
+        confirmText="Ya, Buat Akun"
+        cancelText="Batal"
+        variant="warning"
+        isLoading={confirmCreate.isLoading}
+      />
     </div>
   );
 }

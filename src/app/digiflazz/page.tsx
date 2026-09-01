@@ -15,6 +15,7 @@ import {
   Code2,
 } from "lucide-react";
 import { api, API_BASE_URL } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -26,11 +27,8 @@ export default function DigiflazzCenterPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
-  // Test Simulator
-  const [testSku, setTestSku] = useState("MLBB_86");
-  const [testCustomerId, setTestCustomerId] = useState("12345678(1234)");
-  const [testLoading, setTestLoading] = useState(false);
-  const [testResponse, setTestResponse] = useState<any | null>(null);
+  // Confirm state
+  const [confirmSync, setConfirmSync] = useState(false);
 
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
@@ -48,7 +46,12 @@ export default function DigiflazzCenterPage() {
     }).format(val || 0);
   };
 
-  const handleSync = async () => {
+  const handleSyncPrompt = () => {
+    setConfirmSync(true);
+  };
+
+  const executeSync = async () => {
+    setConfirmSync(false);
     setSyncing(true);
     setSyncResult(null);
     try {
@@ -74,6 +77,8 @@ export default function DigiflazzCenterPage() {
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
   };
+
+  const selectedGameName = games?.find((g: any) => g.id === syncGameId)?.name || `Game ID #${syncGameId}`;
 
   return (
     <div className="space-y-8">
@@ -239,7 +244,7 @@ export default function DigiflazzCenterPage() {
 
             <div className="pt-2">
               <button
-                onClick={handleSync}
+                onClick={handleSyncPrompt}
                 disabled={syncing}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50"
               >
@@ -329,6 +334,29 @@ export default function DigiflazzCenterPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal - Sync Digiflazz */}
+      <ConfirmModal
+        isOpen={confirmSync}
+        onClose={() => setConfirmSync(false)}
+        onConfirm={executeSync}
+        title="Mulai Sinkronisasi Produk Digiflazz?"
+        message={
+          <>
+            Sistem akan mengambil katalog produk dari Digiflazz untuk target game{" "}
+            <strong className="text-white font-semibold">{selectedGameName}</strong> dengan margin markup{" "}
+            <strong className="text-emerald-400 font-bold">{marginPercent}%</strong>.
+            <br />
+            <span className="text-slate-400 text-[11px] mt-1 block">
+              Harga dasar dan harga jual multi-tier akan diperbarui secara otomatis.
+            </span>
+          </>
+        }
+        confirmText="Ya, Mulai Sinkronkan"
+        cancelText="Batal"
+        variant="primary"
+        isLoading={syncing}
+      />
     </div>
   );
 }

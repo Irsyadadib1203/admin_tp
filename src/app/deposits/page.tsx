@@ -4,11 +4,40 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Wallet, CheckCircle2, XCircle, Clock, Search, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
+import PromptModal from "@/components/PromptModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
 export default function DepositsPage() {
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Confirmation states
+  const [approveModal, setApproveModal] = useState<{
+    isOpen: boolean;
+    depositId: number | null;
+    userName: string;
+    amount: number;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    depositId: null,
+    userName: "",
+    amount: 0,
+    isLoading: false,
+  });
+
+  const [rejectModal, setRejectModal] = useState<{
+    isOpen: boolean;
+    depositId: number | null;
+    userName: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    depositId: null,
+    userName: "",
+    isLoading: false,
+  });
 
   const { data: deposits, mutate, isLoading } = useSWR(
     `/admin/deposits?status=${statusFilter}`,
@@ -23,33 +52,50 @@ export default function DepositsPage() {
     }).format(val || 0);
   };
 
-  const handleApprove = async (id: number, userName: string, amount: number) => {
-    if (
-      !confirm(
-        `Setujui deposit sebesar ${formatRupiah(amount)} untuk ${userName}? Saldo akun akan langsung ditambahkan secara otomatis.`
-      )
-    )
-      return;
+  const handleApprovePrompt = (dep: any) => {
+    setApproveModal({
+      isOpen: true,
+      depositId: dep.id,
+      userName: dep.user?.name || `User #${dep.user_id}`,
+      amount: dep.amount,
+      isLoading: false,
+    });
+  };
 
+  const executeApprove = async () => {
+    if (!approveModal.depositId) return;
+    setApproveModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post(`/admin/deposits/${id}/approve`);
-      alert("Deposit berhasil disetujui dan saldo telah ditambahkan!");
+      await api.post(`/admin/deposits/${approveModal.depositId}/approve`);
+      setApproveModal({ isOpen: false, depositId: null, userName: "", amount: 0, isLoading: false });
       mutate();
     } catch (err: any) {
+      setApproveModal((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal menyetujui deposit: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleReject = async (id: number) => {
-    const notes = prompt("Alasan penolakan deposit:", "Bukti transfer tidak valid");
-    if (notes === null) return;
+  const handleRejectPrompt = (dep: any) => {
+    setRejectModal({
+      isOpen: true,
+      depositId: dep.id,
+      userName: dep.user?.name || `User #${dep.user_id}`,
+      isLoading: false,
+    });
+  };
 
+  const executeReject = async (values: Record<string, string>) => {
+    if (!rejectModal.depositId) return;
+    setRejectModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post(`/admin/deposits/${id}/reject`, { notes });
-      alert("Permintaan deposit ditolak.");
+      await api.post(`/admin/deposits/${rejectModal.depositId}/reject`, {
+        notes: values.notes || "Bukti transfer tidak valid",
+      });
+      setRejectModal({ isOpen: false, depositId: null, userName: "", isLoading: false });
       mutate();
     } catch (err: any) {
-      alert("Gagal menolak deposit: " + err.message);
+      setRejectModal((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal menolak deposit: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -79,6 +125,7 @@ export default function DepositsPage() {
           <button
             onClick={() => mutate()}
             className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300"
+            title="Refresh Data"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -151,15 +198,13 @@ export default function DepositsPage() {
                     {dep.status === "pending" ? (
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() =>
-                            handleApprove(dep.id, dep.user?.name, dep.amount)
-                          }
+                          onClick={() => handleApprovePrompt(dep)}
                           className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] shadow transition-colors inline-flex items-center gap-1"
                         >
                           <CheckCircle2 className="w-3 h-3" /> Setujui
                         </button>
                         <button
-                          onClick={() => handleReject(dep.id)}
+                          onClick={() => handleRejectPrompt(dep)}
                           className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 font-semibold text-[11px] transition-colors inline-flex items-center gap-1"
                         >
                           <XCircle className="w-3 h-3" /> Tolak
@@ -181,6 +226,55 @@ export default function DepositsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Confirmation Modal - Approve Deposit */}
+      <ConfirmModal
+        isOpen={approveModal.isOpen}
+        onClose={() =>
+          setApproveModal({ isOpen: false, depositId: null, userName: "", amount: 0, isLoading: false })
+        }
+        onConfirm={executeApprove}
+        title="Setujui Permintaan Deposit?"
+        message={
+          <>
+            Apakah Anda yakin ingin menyetujui deposit sebesar{" "}
+            <strong className="text-emerald-400 font-bold">{formatRupiah(approveModal.amount)}</strong> untuk{" "}
+            <strong className="text-white font-semibold">{approveModal.userName}</strong>?
+            <br />
+            <span className="text-slate-400 text-[11px] mt-1 block">
+              Saldo akun pengguna akan langsung ditambahkan secara otomatis oleh sistem.
+            </span>
+          </>
+        }
+        confirmText="Ya, Setujui & Tambah Saldo"
+        cancelText="Batal"
+        variant="success"
+        isLoading={approveModal.isLoading}
+      />
+
+      {/* Prompt Modal - Reject Deposit */}
+      <PromptModal
+        isOpen={rejectModal.isOpen}
+        onClose={() =>
+          setRejectModal({ isOpen: false, depositId: null, userName: "", isLoading: false })
+        }
+        onSubmit={executeReject}
+        title="Tolak Permintaan Deposit"
+        description={`Masukkan alasan penolakan deposit untuk ${rejectModal.userName}`}
+        fields={[
+          {
+            name: "notes",
+            label: "Alasan Penolakan",
+            placeholder: "Contoh: Bukti transfer tidak valid / dana belum masuk ke rekening",
+            defaultValue: "Bukti transfer tidak valid",
+            required: true,
+          },
+        ]}
+        confirmText="Tolak Deposit"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={rejectModal.isLoading}
+      />
     </div>
   );
 }

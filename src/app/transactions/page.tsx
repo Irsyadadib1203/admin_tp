@@ -15,6 +15,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
+import PromptModal from "@/components/PromptModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -23,6 +25,45 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
+
+  // Dialog States
+  const [retryModal, setRetryModal] = useState<{
+    isOpen: boolean;
+    txId: number | null;
+    invoice: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    txId: null,
+    invoice: "",
+    isLoading: false,
+  });
+
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    txId: number | null;
+    invoice: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    txId: null,
+    invoice: "",
+    isLoading: false,
+  });
+
+  const [refundModal, setRefundModal] = useState<{
+    isOpen: boolean;
+    txId: number | null;
+    invoice: string;
+    customerName: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    txId: null,
+    invoice: "",
+    customerName: "",
+    isLoading: false,
+  });
 
   const { data: transactions, mutate, isLoading } = useSWR(
     `/admin/transactions?page=${page}&limit=20&status=${statusFilter}&search=${search}`,
@@ -38,43 +79,78 @@ export default function TransactionsPage() {
     }).format(val || 0);
   };
 
-  const handleRetry = async (id: number) => {
-    if (!confirm("Ulangi proses transaksi ini ke provider Digiflazz?")) return;
+  const handleRetryPrompt = (tx: any) => {
+    setRetryModal({
+      isOpen: true,
+      txId: tx.id,
+      invoice: tx.invoice_number,
+      isLoading: false,
+    });
+  };
+
+  const executeRetry = async () => {
+    if (!retryModal.txId) return;
+    setRetryModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post(`/admin/transactions/${id}/retry`);
-      alert("Permintaan retry telah dikirim!");
+      await api.post(`/admin/transactions/${retryModal.txId}/retry`);
+      setRetryModal({ isOpen: false, txId: null, invoice: "", isLoading: false });
       mutate();
       if (selectedTx) setSelectedTx(null);
     } catch (err: any) {
-      alert("Gagal retry: " + err.message);
+      setRetryModal((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal retry: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleSuccess = async (id: number) => {
-    const sn = prompt("Masukkan Serial Number (SN) / Voucher / No. Bukti Sukses:", "");
-    if (sn === null) return;
-    const notes = prompt("Catatan admin (opsional):", "Sukses manual oleh admin");
-    if (notes === null) return;
+  const handleSuccessPrompt = (tx: any) => {
+    setSuccessModal({
+      isOpen: true,
+      txId: tx.id,
+      invoice: tx.invoice_number,
+      isLoading: false,
+    });
+  };
+
+  const executeSuccess = async (values: Record<string, string>) => {
+    if (!successModal.txId) return;
+    setSuccessModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post(`/admin/transactions/${id}/success`, { sn, notes });
-      alert("Transaksi berhasil diubah ke status Sukses!");
+      await api.post(`/admin/transactions/${successModal.txId}/success`, {
+        sn: values.sn,
+        notes: values.notes || "Sukses manual oleh admin",
+      });
+      setSuccessModal({ isOpen: false, txId: null, invoice: "", isLoading: false });
       mutate();
       if (selectedTx) setSelectedTx(null);
     } catch (err: any) {
+      setSuccessModal((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal update status: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleRefund = async (id: number) => {
-    const notes = prompt("Alasan refund saldo pelanggan:", "Refund transaksi gagal provider");
-    if (notes === null) return;
+  const handleRefundPrompt = (tx: any) => {
+    setRefundModal({
+      isOpen: true,
+      txId: tx.id,
+      invoice: tx.invoice_number,
+      customerName: tx.customer_id,
+      isLoading: false,
+    });
+  };
+
+  const executeRefund = async (values: Record<string, string>) => {
+    if (!refundModal.txId) return;
+    setRefundModal((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.post(`/admin/transactions/${id}/refund`, { notes });
-      alert("Transaksi berhasil di-refund dan saldo dikembalikan ke akun pelanggan!");
+      await api.post(`/admin/transactions/${refundModal.txId}/refund`, {
+        notes: values.notes || "Refund transaksi gagal provider",
+      });
+      setRefundModal({ isOpen: false, txId: null, invoice: "", customerName: "", isLoading: false });
       mutate();
       if (selectedTx) setSelectedTx(null);
     } catch (err: any) {
-      alert("Gagal refund: " + err.message);
+      setRefundModal((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal refund: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -209,21 +285,21 @@ export default function TransactionsPage() {
                         {tx.status !== "success" && (
                           <>
                             <button
-                              onClick={() => handleRetry(tx.id)}
+                              onClick={() => handleRetryPrompt(tx)}
                               className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-colors"
                               title="Retry ke Provider"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleSuccess(tx.id)}
+                              onClick={() => handleSuccessPrompt(tx)}
                               className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition-colors"
                               title="Set Sukses Manual"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleRefund(tx.id)}
+                              onClick={() => handleRefundPrompt(tx)}
                               className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 transition-colors"
                               title="Refund Saldo"
                             >
@@ -317,19 +393,19 @@ export default function TransactionsPage() {
               {selectedTx.status !== "success" && (
                 <>
                   <button
-                    onClick={() => handleRetry(selectedTx.id)}
+                    onClick={() => handleRetryPrompt(selectedTx)}
                     className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
                   >
                     Retry Digiflazz
                   </button>
                   <button
-                    onClick={() => handleSuccess(selectedTx.id)}
+                    onClick={() => handleSuccessPrompt(selectedTx)}
                     className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
                   >
                     Set Sukses Manual
                   </button>
                   <button
-                    onClick={() => handleRefund(selectedTx.id)}
+                    onClick={() => handleRefundPrompt(selectedTx)}
                     className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold"
                   >
                     Refund Saldo
@@ -346,6 +422,79 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal - Retry Digiflazz */}
+      <ConfirmModal
+        isOpen={retryModal.isOpen}
+        onClose={() =>
+          setRetryModal({ isOpen: false, txId: null, invoice: "", isLoading: false })
+        }
+        onConfirm={executeRetry}
+        title="Ulangi Proses Transaksi?"
+        message={
+          <>
+            Apakah Anda ingin mengirim ulang pesanan untuk invoice{" "}
+            <strong className="text-white font-mono">{retryModal.invoice}</strong> ke provider Digiflazz?
+          </>
+        }
+        confirmText="Ya, Kirim Ulang"
+        cancelText="Batal"
+        variant="primary"
+        isLoading={retryModal.isLoading}
+      />
+
+      {/* Prompt Modal - Manual Success */}
+      <PromptModal
+        isOpen={successModal.isOpen}
+        onClose={() =>
+          setSuccessModal({ isOpen: false, txId: null, invoice: "", isLoading: false })
+        }
+        onSubmit={executeSuccess}
+        title="Ubah Status ke Sukses Manual"
+        description={`Masukkan nomor Serial Number (SN) / bukti pengiriman untuk invoice ${successModal.invoice}`}
+        fields={[
+          {
+            name: "sn",
+            label: "Serial Number (SN) / Kode Voucher",
+            placeholder: "Contoh: MLBB86-123456789 atau No. Bukti Pengiriman",
+            required: true,
+          },
+          {
+            name: "notes",
+            label: "Catatan Admin (Opsional)",
+            placeholder: "Sukses manual oleh admin",
+            defaultValue: "Sukses manual oleh admin",
+          },
+        ]}
+        confirmText="Setujui & Set Sukses"
+        cancelText="Batal"
+        variant="success"
+        isLoading={successModal.isLoading}
+      />
+
+      {/* Prompt Modal - Refund */}
+      <PromptModal
+        isOpen={refundModal.isOpen}
+        onClose={() =>
+          setRefundModal({ isOpen: false, txId: null, invoice: "", customerName: "", isLoading: false })
+        }
+        onSubmit={executeRefund}
+        title="Refund Saldo Pelanggan"
+        description={`Saldo akan dikembalikan ke akun pelanggan untuk invoice ${refundModal.invoice}`}
+        fields={[
+          {
+            name: "notes",
+            label: "Alasan Refund Saldo",
+            placeholder: "Contoh: Gangguan provider / ID tujuan salah",
+            defaultValue: "Refund transaksi gagal provider",
+            required: true,
+          },
+        ]}
+        confirmText="Konfirmasi Refund Saldo"
+        cancelText="Batal"
+        variant="warning"
+        isLoading={refundModal.isLoading}
+      />
     </div>
   );
 }

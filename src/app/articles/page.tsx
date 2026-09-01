@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { createPortal } from "react-dom";
 import {
   Newspaper,
   Plus,
@@ -12,6 +13,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -52,6 +54,27 @@ export default function ArticlesPage() {
   const [previewError, setPreviewError] = useState(false);
   const [filterCat, setFilterCat] = useState("Semua");
 
+  // Confirm states
+  const [confirmDelete, setConfirmDelete] = useState<{
+    isOpen: boolean;
+    articleId: number | null;
+    articleTitle: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    articleId: null,
+    articleTitle: "",
+    isLoading: false,
+  });
+
+  const [confirmEdit, setConfirmEdit] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
+
   const { data: articles, mutate, isLoading } = useSWR(
     `/admin/articles${filterCat !== "Semua" ? `?category=${filterCat}` : ""}`,
     fetcher
@@ -89,28 +112,51 @@ export default function ArticlesPage() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingArticle) {
+      setConfirmEdit({ isOpen: true, isLoading: false });
+    } else {
+      executeSave();
+    }
+  };
+
+  const executeSave = async () => {
     try {
       if (editingArticle) {
+        setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
         await api.put(`/admin/articles/${editingArticle.id}`, formData);
+        setConfirmEdit({ isOpen: false, isLoading: false });
       } else {
         await api.post("/admin/articles", formData);
       }
       setIsModalOpen(false);
       mutate();
     } catch (err: any) {
+      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
       alert("Error: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleDelete = async (id: number, title: string) => {
-    if (!confirm(`Hapus artikel "${title}"?`)) return;
+  const promptDelete = (id: number, title: string) => {
+    setConfirmDelete({
+      isOpen: true,
+      articleId: id,
+      articleTitle: title,
+      isLoading: false,
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete.articleId) return;
+    setConfirmDelete((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.delete(`/admin/articles/${id}`);
+      await api.delete(`/admin/articles/${confirmDelete.articleId}`);
+      setConfirmDelete({ isOpen: false, articleId: null, articleTitle: "", isLoading: false });
       mutate();
     } catch (err: any) {
-      alert("Gagal menghapus: " + err.message);
+      setConfirmDelete((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal menghapus: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -238,12 +284,14 @@ export default function ArticlesPage() {
                         <button
                           onClick={() => openEdit(a)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                          title="Edit Artikel"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(a.id, a.title)}
+                          onClick={() => promptDelete(a.id, a.title)}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
+                          title="Hapus Artikel"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -264,155 +312,195 @@ export default function ArticlesPage() {
       </div>
 
       {/* Modal Add/Edit Article */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-4 my-4">
-            <h3 className="text-lg font-bold text-white">
-              {editingArticle ? "Edit Artikel" : "Tambah Artikel Baru"}
-            </h3>
+      {isModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-4 my-4">
+              <h3 className="text-lg font-bold text-white">
+                {editingArticle ? "Edit Artikel: " + editingArticle.title : "Tambah Artikel Baru"}
+              </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              {/* Image URL + Live Preview */}
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">URL Gambar Artikel</label>
-                <input
-                  type="url"
-                  placeholder="https://i.ibb.co/xxx/berita.jpg"
-                  value={formData.image_url}
-                  onChange={(e) => {
-                    setFormData({ ...formData, image_url: e.target.value });
-                    setPreviewError(false);
-                  }}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 placeholder-slate-600"
-                />
-                {formData.image_url && !previewError && (
-                  <div className="mt-2 rounded-xl overflow-hidden border border-slate-700 h-28 bg-slate-800">
-                    <img
-                      src={formData.image_url}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                      onError={() => setPreviewError(true)}
-                    />
-                  </div>
-                )}
-                {previewError && (
-                  <p className="mt-1.5 text-rose-400 text-[11px] flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    URL gambar tidak dapat dimuat. Pastikan URL dapat diakses publik.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  Judul Artikel <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Promo Top Up Mobile Legends Bonus 30%"
-                  value={formData.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  Slug URL <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="promo-top-up-mobile-legends-bonus-30"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
-                />
-                <p className="text-slate-500 mt-1 text-[11px]">Auto-generated dari judul. Hanya huruf kecil & tanda minus.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
+                {/* Image URL + Live Preview */}
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1.5">Kategori</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <label className="block text-slate-300 font-medium mb-1.5">URL Gambar Artikel</label>
+                  <input
+                    type="url"
+                    placeholder="https://i.ibb.co/xxx/berita.jpg"
+                    value={formData.image_url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, image_url: e.target.value });
+                      setPreviewError(false);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                  {formData.image_url && !previewError && (
+                    <div className="mt-2 rounded-xl overflow-hidden border border-slate-700 h-28 bg-slate-800">
+                      <img
+                        src={formData.image_url}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={() => setPreviewError(true)}
+                      />
+                    </div>
+                  )}
+                  {previewError && (
+                    <p className="mt-1.5 text-rose-400 text-[11px] flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      URL gambar tidak dapat dimuat. Pastikan URL dapat diakses publik.
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1.5">Estimasi Baca</label>
+                  <label className="block text-slate-300 font-medium mb-1.5">
+                    Judul Artikel <span className="text-rose-400">*</span>
+                  </label>
                   <input
                     type="text"
-                    placeholder="3 min read"
-                    value={formData.read_time}
-                    onChange={(e) => setFormData({ ...formData, read_time: e.target.value })}
+                    required
+                    placeholder="Promo Top Up Mobile Legends Bonus 30%"
+                    value={formData.title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  Ringkasan / Excerpt <span className="text-rose-400">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Deskripsi singkat artikel yang tampil di kartu berita..."
-                  value={formData.excerpt}
-                  onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">Konten Lengkap (opsional)</label>
-                <textarea
-                  rows={5}
-                  placeholder="Isi artikel secara lengkap..."
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-6 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">
+                    Slug URL <span className="text-rose-400">*</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={formData.is_published}
-                    onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
-                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    type="text"
+                    required
+                    placeholder="promo-top-up-mobile-legends-bonus-30"
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ ...formData, slug: slugify(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
                   />
-                  <span className="text-slate-300 font-medium">Publish (tampil di website)</span>
-                </label>
-              </div>
+                  <p className="text-slate-500 mt-1 text-[11px]">Auto-generated dari judul. Hanya huruf kecil & tanda minus.</p>
+                </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  {editingArticle ? "Simpan Perubahan" : "Buat Artikel"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1.5">Kategori</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    >
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1.5">Estimasi Baca</label>
+                    <input
+                      type="text"
+                      placeholder="3 min read"
+                      value={formData.read_time}
+                      onChange={(e) => setFormData({ ...formData, read_time: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">
+                    Ringkasan / Excerpt <span className="text-rose-400">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Deskripsi singkat artikel yang tampil di kartu berita..."
+                    value={formData.excerpt}
+                    onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">Konten Lengkap (opsional)</label>
+                  <textarea
+                    rows={5}
+                    placeholder="Isi artikel secara lengkap..."
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-6 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_published}
+                      onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                    />
+                    <span className="text-slate-300 font-medium">Publish (tampil di website)</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    {editingArticle ? "Simpan Perubahan" : "Buat Artikel"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Confirmation Modal - Delete Article */}
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() =>
+          setConfirmDelete({ isOpen: false, articleId: null, articleTitle: "", isLoading: false })
+        }
+        onConfirm={executeDelete}
+        title="Hapus Berita / Artikel?"
+        message={
+          <>
+            Apakah Anda yakin ingin menghapus artikel{" "}
+            <strong className="text-white font-semibold">{confirmDelete.articleTitle}</strong>?
+          </>
+        }
+        confirmText="Ya, Hapus Artikel"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={confirmDelete.isLoading}
+      />
+
+      {/* Confirmation Modal - Edit Article */}
+      <ConfirmModal
+        isOpen={confirmEdit.isOpen}
+        onClose={() => setConfirmEdit({ isOpen: false, isLoading: false })}
+        onConfirm={executeSave}
+        title="Simpan Perubahan Artikel?"
+        message={
+          <>
+            Apakah Anda yakin ingin memperbarui artikel{" "}
+            <strong className="text-white font-semibold">{formData.title}</strong>?
+          </>
+        }
+        confirmText="Ya, Simpan"
+        cancelText="Periksa Lagi"
+        variant="primary"
+        isLoading={confirmEdit.isLoading}
+      />
     </div>
   );
 }

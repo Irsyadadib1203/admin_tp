@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Edit2, Trash2, Search, Zap, Check, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Plus, Edit2, Trash2, Search, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
+import ConfirmModal from "@/components/ConfirmModal";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -12,6 +14,27 @@ export default function NominalsPage() {
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNominal, setEditingNominal] = useState<any | null>(null);
+
+  // Confirm states
+  const [confirmDelete, setConfirmDelete] = useState<{
+    isOpen: boolean;
+    nominalId: number | null;
+    nominalName: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    nominalId: null,
+    nominalName: "",
+    isLoading: false,
+  });
+
+  const [confirmEdit, setConfirmEdit] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false,
+  });
 
   const { data: games } = useSWR("/admin/games", fetcher);
   const { data: nominals, mutate, isLoading } = useSWR(
@@ -96,28 +119,51 @@ export default function NominalsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingNominal) {
+      setConfirmEdit({ isOpen: true, isLoading: false });
+    } else {
+      executeSave();
+    }
+  };
+
+  const executeSave = async () => {
     try {
       if (editingNominal) {
+        setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
         await api.put(`/admin/nominals/${editingNominal.id}`, formData);
+        setConfirmEdit({ isOpen: false, isLoading: false });
       } else {
         await api.post("/admin/nominals", formData);
       }
       setIsModalOpen(false);
       mutate();
     } catch (err: any) {
+      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
       alert("Error: " + (err.response?.data?.message || err.message));
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Hapus nominal ${name}?`)) return;
+  const promptDelete = (id: number, name: string) => {
+    setConfirmDelete({
+      isOpen: true,
+      nominalId: id,
+      nominalName: name,
+      isLoading: false,
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete.nominalId) return;
+    setConfirmDelete((prev) => ({ ...prev, isLoading: true }));
     try {
-      await api.delete(`/admin/nominals/${id}`);
+      await api.delete(`/admin/nominals/${confirmDelete.nominalId}`);
+      setConfirmDelete({ isOpen: false, nominalId: null, nominalName: "", isLoading: false });
       mutate();
     } catch (err: any) {
-      alert("Gagal menghapus: " + err.message);
+      setConfirmDelete((prev) => ({ ...prev, isLoading: false }));
+      alert("Gagal menghapus: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -236,12 +282,14 @@ export default function NominalsPage() {
                         <button
                           onClick={() => openEditModal(item)}
                           className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                          title="Edit Nominal"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(item.id, item.name)}
+                          onClick={() => promptDelete(item.id, item.name)}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
+                          title="Hapus Nominal"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -262,183 +310,223 @@ export default function NominalsPage() {
       </div>
 
       {/* Modal Add / Edit Nominal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">
-              {editingNominal ? "Edit Nominal Produk" : "Tambah Nominal Produk"}
-            </h3>
+      {isModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">
+                {editingNominal ? "Edit Nominal: " + editingNominal.name : "Tambah Nominal Produk"}
+              </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Pilih Game *
-                  </label>
-                  <select
-                    value={formData.game_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, game_id: parseInt(e.target.value) })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  >
-                    {games?.map((g: any) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
+              <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Pilih Game *
+                    </label>
+                    <select
+                      value={formData.game_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, game_id: parseInt(e.target.value) })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    >
+                      {games?.map((g: any) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Nama Nominal *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: 86 Diamonds"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Nama Nominal *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: 86 Diamonds"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    SKU Provider (Digiflazz) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="ML86 / FF140"
-                    value={formData.provider_product_code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, provider_product_code: e.target.value })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    SKU Seller (Open API H2H)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="MLBB_86"
-                    value={formData.seller_product_code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, seller_product_code: e.target.value })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Pricing Calculation Box */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
-                <h4 className="font-semibold text-indigo-400">
-                  Kalkulasi Harga & Margin Bertingkat
-                </h4>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-400 mb-1">
-                      Harga Modal Dasar (Rp)
+                    <label className="block text-slate-300 font-medium mb-1">
+                      SKU Provider (Digiflazz) *
                     </label>
                     <input
-                      type="number"
-                      value={formData.base_price}
+                      type="text"
+                      required
+                      placeholder="ML86 / FF140"
+                      value={formData.provider_product_code}
                       onChange={(e) =>
-                        handleBasePriceOrMarginChange(
-                          parseFloat(e.target.value) || 0,
-                          formData.margin_percent
-                        )
+                        setFormData({ ...formData, provider_product_code: e.target.value })
                       }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none font-medium"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 mb-1">
-                      Markup Margin (%)
+                    <label className="block text-slate-300 font-medium mb-1">
+                      SKU Seller (Open API H2H)
                     </label>
                     <input
-                      type="number"
-                      value={formData.margin_percent}
+                      type="text"
+                      placeholder="MLBB_86"
+                      value={formData.seller_product_code}
                       onChange={(e) =>
-                        handleBasePriceOrMarginChange(
-                          formData.base_price,
-                          parseFloat(e.target.value) || 0
-                        )
+                        setFormData({ ...formData, seller_product_code: e.target.value })
                       }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none font-medium"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80">
-                  <div className="bg-slate-900 p-2 rounded-lg text-center">
-                    <span className="text-[10px] text-slate-400 block">Publik</span>
-                    <span className="font-bold text-emerald-400 text-xs">
-                      {formatRupiah(formData.price_public)}
-                    </span>
+                {/* Pricing Calculation Box */}
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+                  <h4 className="font-semibold text-indigo-400">
+                    Kalkulasi Harga & Margin Bertingkat
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">
+                        Harga Modal Dasar (Rp)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.base_price}
+                        onChange={(e) =>
+                          handleBasePriceOrMarginChange(
+                            parseFloat(e.target.value) || 0,
+                            formData.margin_percent
+                          )
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">
+                        Markup Margin (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.margin_percent}
+                        onChange={(e) =>
+                          handleBasePriceOrMarginChange(
+                            formData.base_price,
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none font-medium"
+                      />
+                    </div>
                   </div>
-                  <div className="bg-slate-900 p-2 rounded-lg text-center">
-                    <span className="text-[10px] text-slate-400 block">Member</span>
-                    <span className="font-bold text-sky-400 text-xs">
-                      {formatRupiah(formData.price_member)}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900 p-2 rounded-lg text-center">
-                    <span className="text-[10px] text-slate-400 block">VIP</span>
-                    <span className="font-bold text-violet-400 text-xs">
-                      {formatRupiah(formData.price_vip)}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900 p-2 rounded-lg text-center">
-                    <span className="text-[10px] text-slate-400 block">Reseller H2H</span>
-                    <span className="font-bold text-amber-300 text-xs">
-                      {formatRupiah(formData.price_reseller)}
-                    </span>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80">
+                    <div className="bg-slate-900 p-2 rounded-lg text-center">
+                      <span className="text-[10px] text-slate-400 block">Publik</span>
+                      <span className="font-bold text-emerald-400 text-xs">
+                        {formatRupiah(formData.price_public)}
+                      </span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg text-center">
+                      <span className="text-[10px] text-slate-400 block">Member</span>
+                      <span className="font-bold text-sky-400 text-xs">
+                        {formatRupiah(formData.price_member)}
+                      </span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg text-center">
+                      <span className="text-[10px] text-slate-400 block">VIP</span>
+                      <span className="font-bold text-violet-400 text-xs">
+                        {formatRupiah(formData.price_vip)}
+                      </span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg text-center">
+                      <span className="text-[10px] text-slate-400 block">Reseller H2H</span>
+                      <span className="font-bold text-amber-300 text-xs">
+                        {formatRupiah(formData.price_reseller)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="nom_active"
-                  checked={formData.is_active}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_active: e.target.checked })
-                  }
-                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
-                />
-                <label htmlFor="nom_active" className="text-slate-300 font-medium cursor-pointer">
-                  Aktifkan item ini untuk dijual
-                </label>
-              </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="nom_active"
+                    checked={formData.is_active}
+                    onChange={(e) =>
+                      setFormData({ ...formData, is_active: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600"
+                  />
+                  <label htmlFor="nom_active" className="text-slate-300 font-medium cursor-pointer">
+                    Aktifkan item ini untuk dijual
+                  </label>
+                </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
-                >
-                  {editingNominal ? "Simpan Perubahan" : "Buat Nominal"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                  >
+                    {editingNominal ? "Simpan Perubahan" : "Buat Nominal"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Confirmation Modal - Delete Nominal */}
+      <ConfirmModal
+        isOpen={confirmDelete.isOpen}
+        onClose={() =>
+          setConfirmDelete({ isOpen: false, nominalId: null, nominalName: "", isLoading: false })
+        }
+        onConfirm={executeDelete}
+        title="Hapus Nominal Item?"
+        message={
+          <>
+            Apakah Anda yakin ingin menghapus item nominal{" "}
+            <strong className="text-white font-semibold">{confirmDelete.nominalName}</strong>?
+          </>
+        }
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={confirmDelete.isLoading}
+      />
+
+      {/* Confirmation Modal - Edit Nominal */}
+      <ConfirmModal
+        isOpen={confirmEdit.isOpen}
+        onClose={() => setConfirmEdit({ isOpen: false, isLoading: false })}
+        onConfirm={executeSave}
+        title="Simpan Perubahan Harga & Nominal?"
+        message={
+          <>
+            Apakah Anda yakin ingin memperbarui konfigurasi harga dan SKU untuk{" "}
+            <strong className="text-white font-semibold">{formData.name}</strong>?
+          </>
+        }
+        confirmText="Ya, Simpan"
+        cancelText="Periksa Lagi"
+        variant="primary"
+        isLoading={confirmEdit.isLoading}
+      />
     </div>
   );
 }

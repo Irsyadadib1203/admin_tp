@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NextImage from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -45,11 +46,16 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-30">
-      {/* Brand header – IRXPlay */}
+     {/* Brand header – IRXPlay */}
       <div className="h-16 flex items-center px-6 border-b border-slate-800 gap-3">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30">
-          <ArrowRightLeft className="w-5 h-5" />
-        </div>
+        <NextImage
+          src="/logo.png"
+          alt="IRXPlay Logo"
+          width={36}
+          height={36}
+          className="object-contain"
+          priority
+        />
         <div>
           <h1 className="font-bold text-base text-white leading-none">IRXPlay Admin</h1>
           <span className="text-[11px] text-indigo-400 font-medium">Golang Engine v2.0</span>
