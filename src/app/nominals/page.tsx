@@ -453,11 +453,16 @@ export default function NominalsPage() {
                         {getProviderBadge(item.provider, item.provider_id)}
                       </td>
                       <td className="py-3.5 px-3 font-mono text-slate-300">
-                        <div>
+                        <div className="space-y-0.5">
                           <span className="text-slate-400 block text-[10px]">
                             Prov: {item.provider_product_code}
                           </span>
-                          <span className="text-amber-400 font-medium text-[11px]">
+                          {item.kiosgamer_product_code && (
+                            <span className="text-emerald-400 block text-[10px]">
+                              Kiosgamer: {item.kiosgamer_product_code}
+                            </span>
+                          )}
+                          <span className="text-amber-400 font-medium text-[11px] block">
                             H2H: {item.seller_product_code || item.provider_product_code}
                           </span>
                         </div>
@@ -578,6 +583,42 @@ export default function NominalsPage() {
                   </div>
                 </div>
 
+                {/* Warning if Kiosgamer selected on non-supported game */}
+                {(() => {
+                  const selectedProv = providers?.find((p: any) => p.id === formData.provider_id);
+                  const isKios = selectedProv?.code?.toUpperCase() === "KIOSGAMER" || formData.provider_id === 2;
+                  const curGame = games?.find((g: any) => g.id === formData.game_id);
+                  const isGarena =
+                    curGame &&
+                    (curGame.slug?.toLowerCase().includes("free") ||
+                      curGame.slug?.toLowerCase().includes("cod") ||
+                      curGame.slug?.toLowerCase().includes("duty") ||
+                      curGame.name?.toLowerCase().includes("free fire") ||
+                      curGame.name?.toLowerCase().includes("call of duty"));
+
+                  if (isKios && !isGarena) {
+                    return (
+                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                        <span>
+                          <strong>Peringatan Kompatibilitas:</strong> Game <u>{curGame?.name || "ini"}</u> tidak didukung oleh Kiosgamer. Kiosgamer hanya melayani game Garena (Free Fire & CODM). Transaksi akan otomatis fallback/gagal jika tetap dipaksakan.
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (isKios && !formData.kiosgamer_product_code.trim()) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+                        <span>
+                          <strong>Wajib Diisi:</strong> Anda memilih Provider Kiosgamer. Pastikan kolom <strong>SKU Kiosgamer</strong> di bawah telah diisi dengan <code>item_id</code> produk resmi Kiosgamer.
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">Nama Nominal *</label>
                   <input
@@ -608,7 +649,7 @@ export default function NominalsPage() {
                   </div>
                   <div>
                     <label className="block text-amber-300 font-medium mb-1 flex items-center justify-between">
-                      <span>SKU Kiosgamer</span>
+                      <span>SKU Kiosgamer {providers?.find((p: any) => p.id === formData.provider_id)?.code?.toUpperCase() === "KIOSGAMER" ? "*" : ""}</span>
                       <span className="text-[10px] text-slate-400">FF / CODM</span>
                     </label>
                     <input
