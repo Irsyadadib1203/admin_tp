@@ -3,11 +3,13 @@
 import Link from "next/link";
 import NextImage from "next/image";
 import { usePathname } from "next/navigation";
+import useSWR from "swr";
 import {
   LayoutDashboard,
   Gamepad2,
   Tags,
   Zap,
+  Flame,
   ShieldCheck,
   Receipt,
   Users,
@@ -15,86 +17,181 @@ import {
   CreditCard,
   Settings,
   LogOut,
-  ArrowRightLeft,
   Image,
   Newspaper,
   BookOpen,
+  X,
+  ShieldAlert,
 } from "lucide-react";
-import { clearAuthSession } from "@/lib/auth";
+import { clearAuthSession, getStoredUser } from "@/lib/auth";
+import { api } from "@/lib/api";
 
-const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Transactions", href: "/transactions", icon: Receipt },
-  { name: "Games Catalog", href: "/games", icon: Gamepad2 },
-  { name: "Nominals & Prices", href: "/nominals", icon: Tags },
-  { name: "Banner & Promo", href: "/banners", icon: Image },
-  { name: "Berita & Artikel", href: "/articles", icon: Newspaper },
-  { name: "Digiflazz Center", href: "/digiflazz", icon: Zap },
-  { name: "IP Whitelist & Security", href: "/ip-whitelist", icon: ShieldCheck },
-  { name: "Users & Resellers", href: "/users", icon: Users },
-  { name: "Deposits", href: "/deposits", icon: Wallet },
-  { name: "Payment Gateways", href: "/payment-methods", icon: CreditCard },
-  { name: "API Docs (H2H)", href: "/docs", icon: BookOpen },
-  { name: "Logs & Settings", href: "/settings", icon: Settings },
+const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  resource: string;
+}
+
+const allNavItems: NavItem[] = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "dashboard" },
+  { name: "Transactions", href: "/transactions", icon: Receipt, resource: "transactions" },
+  { name: "Games Catalog", href: "/games", icon: Gamepad2, resource: "games" },
+  { name: "Nominals & Prices", href: "/nominals", icon: Tags, resource: "nominals" },
+  { name: "Banner & Promo", href: "/banners", icon: Image, resource: "banners" },
+  { name: "Berita & Artikel", href: "/articles", icon: Newspaper, resource: "articles" },
+  { name: "Digiflazz Center", href: "/digiflazz", icon: Zap, resource: "digiflazz" },
+  { name: "Kiosgamer Center", href: "/kiosgamer", icon: Flame, resource: "kiosgamer" },
+  { name: "IP Whitelist & Security", href: "/ip-whitelist", icon: ShieldCheck, resource: "ip_whitelist" },
+  { name: "Users & Resellers", href: "/users", icon: Users, resource: "users" },
+  { name: "Deposits", href: "/deposits", icon: Wallet, resource: "deposits" },
+  { name: "Payment Gateways", href: "/payment-methods", icon: CreditCard, resource: "payment_methods" },
+  { name: "Hak Akses & Role", href: "/roles", icon: ShieldAlert, resource: "roles" },
+  { name: "API Docs (H2H)", href: "/docs", icon: BookOpen, resource: "docs" },
+  { name: "Logs & Settings", href: "/settings", icon: Settings, resource: "settings" },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const currentUser = getStoredUser();
+  const isSuperAdmin = currentUser?.role === "superadmin";
+
+  const { data: permData } = useSWR(
+    currentUser ? "/admin/rbac/my-permissions" : null,
+    fetcher
+  );
 
   // Hide sidebar on login page
   if (pathname === "/login") return null;
 
+  // Filter accessible navigation items
+  const accessibleItems = allNavItems.filter((item) => {
+    // Roles management is strictly for superadmin
+    if (item.resource === "roles") {
+      return isSuperAdmin;
+    }
+    // Superadmin has access to everything
+    if (isSuperAdmin) {
+      return true;
+    }
+    // If permission data is still loading, allow dashboard as safe fallback
+    if (!permData?.permissions) {
+      return item.resource === "dashboard";
+    }
+    return permData.permissions.includes(item.resource);
+  });
+
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-30">
-     {/* Brand header – IRXPlay */}
-      <div className="h-16 flex items-center px-6 border-b border-slate-800 gap-3">
-        <NextImage
-          src="/logo.png"
-          alt="IRXPlay Logo"
-          width={36}
-          height={36}
-          className="object-contain"
-          priority
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          aria-hidden="true"
         />
-        <div>
-          <h1 className="font-bold text-base text-white leading-none">IRXPlay Admin</h1>
-          <span className="text-[11px] text-indigo-400 font-medium">Golang Engine v2.0</span>
+      )}
+
+      {/* Sidebar Container */}
+      <aside
+        className={`w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          isOpen ? "translate-x-0 shadow-2xl shadow-black/80" : "-translate-x-full"
+        }`}
+      >
+        {/* Brand header */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <NextImage
+              src="/logo.png"
+              alt="IRXPlay Logo"
+              width={34}
+              height={34}
+              className="object-contain"
+              priority
+            />
+            <div>
+              <h1 className="font-bold text-sm text-white leading-none">IRXPlay Admin</h1>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[10px] text-indigo-400 font-medium">Golang Engine</span>
+                {currentUser?.role && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                    {currentUser.role}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Close button on mobile */}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      </div>
 
+        {/* Navigation Links */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+          {accessibleItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            const isRoleItem = item.resource === "roles";
 
-      {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => onClose?.()}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  isActive
+                    ? isRoleItem
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                      : "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                    : isRoleItem
+                    ? "text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                }`}
+              >
+                <Icon
+                  className={`w-4 h-4 ${
+                    isActive
+                      ? "text-white"
+                      : isRoleItem
+                      ? "text-indigo-400"
+                      : "text-slate-400"
+                  }`}
+                />
+                <span className="flex-1">{item.name}</span>
+                {isRoleItem && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300">
+                    Super
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Footer / Logout */}
-      <div className="p-4 border-t border-slate-800">
-        <button
-          onClick={clearAuthSession}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Log Out
-        </button>
-      </div>
-    </aside>
+        {/* Footer / Logout */}
+        <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={clearAuthSession}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Log Out
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

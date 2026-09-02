@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, ShieldAlert, User as UserIcon } from "lucide-react";
+import { Menu, User as UserIcon } from "lucide-react";
 import { getStoredUser, AdminUser } from "@/lib/auth";
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<AdminUser | null>(null);
 
@@ -27,6 +31,8 @@ export default function Header() {
         return "Nominals & Pricing";
       case "/digiflazz":
         return "Digiflazz Command Center";
+      case "/kiosgamer":
+        return "Kiosgamer Command Center";
       case "/ip-whitelist":
         return "IP Whitelist & Security Guard";
       case "/users":
@@ -35,6 +41,12 @@ export default function Header() {
         return "Deposit Approvals";
       case "/payment-methods":
         return "Payment Gateways & Methods";
+      case "/banners":
+        return "Banner & Promo Management";
+      case "/articles":
+        return "Berita & Artikel";
+      case "/docs":
+        return "API Documentation H2H";
       case "/settings":
         return "System Logs & Settings";
       default:
@@ -43,22 +55,33 @@ export default function Header() {
   };
 
   return (
-    <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 sticky top-0 z-20">
-      <div>
-        <h2 className="text-lg font-semibold text-white">{pageTitle()}</h2>
+    <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        {/* Mobile Hamburger Button */}
+        <button
+          onClick={onMenuClick}
+          className="p-2 -ml-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 md:hidden transition-colors"
+          aria-label="Open sidebar"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-base sm:text-lg font-bold text-white truncate max-w-[200px] sm:max-w-none">
+          {pageTitle()}
+        </h2>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         {/* Status Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           Engine Active
         </div>
 
         {/* User Profile */}
-        <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
-            <UserIcon className="w-4 h-4" />
+        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-800">
+          <div className="w-8 h-8 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-bold text-xs">
+            {user?.name ? user.name.charAt(0).toUpperCase() : <UserIcon className="w-4 h-4" />}
           </div>
           <div className="text-left hidden sm:block">
             <p className="text-xs font-semibold text-white leading-none">
