@@ -81,6 +81,8 @@ export default function TransactionsPage() {
     isLoading: false,
   });
 
+  const [checkingStatusTxId, setCheckingStatusTxId] = useState<number | null>(null);
+
   const { data: transactions, mutate, isLoading } = useSWR(
     `/admin/transactions?page=${page}&limit=20&status=${statusFilter}&search=${search}`,
     fetcher,
@@ -151,6 +153,27 @@ export default function TransactionsPage() {
     setTimeout(() => {
       setResponseModal((prev) => ({ ...prev, copied: false }));
     }, 2000);
+  };
+
+  const handleCheckStatus = async (tx: any) => {
+    if (!tx?.id) return;
+    setCheckingStatusTxId(tx.id);
+    try {
+      const res = await api.post(`/admin/transactions/${tx.id}/check-status`);
+      const updated = res.data?.data;
+      alert(`Status provider berhasil diperbarui!\n\nStatus: ${updated?.status?.toUpperCase() || "OK"}\nStatus Provider: ${updated?.provider_status || "-"}\nPesan: ${updated?.provider_message || "-"}\nSN/ID: ${updated?.payment_reference || updated?.provider_order_id || "-"}`);
+      mutate();
+      if (selectedTx && selectedTx.id === tx.id) {
+        setSelectedTx(updated);
+      }
+      if (responseModal.isOpen && responseModal.tx?.id === tx.id) {
+        setResponseModal((prev) => ({ ...prev, tx: updated }));
+      }
+    } catch (err: any) {
+      alert("Gagal cek status provider: " + (err.response?.data?.message || err.message));
+    } finally {
+      setCheckingStatusTxId(null);
+    }
   };
 
   const handleRetryPrompt = (tx: any) => {
@@ -387,12 +410,22 @@ export default function TransactionsPage() {
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
+                        {/* Tombol 1: Cek Status Provider (Hanya Get Status, Tidak Memotong Saldo) */}
+                        <button
+                          onClick={() => handleCheckStatus(tx)}
+                          disabled={checkingStatusTxId === tx.id}
+                          className="p-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 transition-colors disabled:opacity-50"
+                          title="Cek Status ke Provider (Get Status saja, TIDAK memotong saldo)"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === tx.id ? "animate-spin" : ""}`} />
+                        </button>
                         {tx.status !== "success" && (
                           <>
+                            {/* Tombol 2: Proses Ulang (Kirim Order Baru) */}
                             <button
                               onClick={() => handleRetryPrompt(tx)}
                               className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-colors"
-                              title="Retry ke Provider"
+                              title="Proses Ulang (Kirim Order Baru ke Provider)"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
@@ -536,9 +569,18 @@ export default function TransactionsPage() {
             {/* Footer Note & Actions */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
               <p className="text-[11px] text-slate-500">
-                Respon disimpan otomatis saat Digiflazz mengirim callback webhook atau saat retry admin.
+                Respon disimpan otomatis saat provider mengirim callback atau saat status dicek.
               </p>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleCheckStatus(responseModal.tx)}
+                  disabled={checkingStatusTxId === responseModal.tx.id}
+                  className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md shadow-sky-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  title="Hanya get status dari provider, TIDAK memotong saldo"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === responseModal.tx.id ? "animate-spin" : ""}`} />
+                  Cek Status Provider
+                </button>
                 {responseModal.tx.status !== "success" && (
                   <button
                     onClick={() => {
@@ -549,7 +591,7 @@ export default function TransactionsPage() {
                     className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all flex items-center gap-1"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Retry Provider
+                    Proses Ulang Order
                   </button>
                 )}
                 <button
@@ -638,6 +680,16 @@ export default function TransactionsPage() {
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
               <button
+                onClick={() => handleCheckStatus(selectedTx)}
+                disabled={checkingStatusTxId === selectedTx.id}
+                className="px-3.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 border border-sky-500/30"
+                title="Hanya mengambil status terbaru dari provider tanpa memotong saldo"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${checkingStatusTxId === selectedTx.id ? "animate-spin" : ""}`} />
+                Cek Status Provider
+              </button>
+
+              <button
                 onClick={() => {
                   const tx = selectedTx;
                   setSelectedTx(null);
@@ -655,7 +707,7 @@ export default function TransactionsPage() {
                     onClick={() => handleRetryPrompt(selectedTx)}
                     className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
                   >
-                    Retry Digiflazz
+                    Proses Ulang Order
                   </button>
                   <button
                     onClick={() => handleSuccessPrompt(selectedTx)}
@@ -682,21 +734,26 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {/* Confirmation Modal - Retry Digiflazz */}
+      {/* Confirmation Modal - Retry Provider */}
       <ConfirmModal
         isOpen={retryModal.isOpen}
         onClose={() =>
           setRetryModal({ isOpen: false, txId: null, invoice: "", isLoading: false })
         }
         onConfirm={executeRetry}
-        title="Ulangi Proses Transaksi?"
+        title="Proses Ulang Transaksi (Kirim Order Baru)?"
         message={
-          <>
-            Apakah Anda ingin mengirim ulang pesanan untuk invoice{" "}
-            <strong className="text-white font-mono">{retryModal.invoice}</strong> ke provider Digiflazz?
-          </>
+          <div className="space-y-2.5">
+            <p className="text-slate-200 text-xs leading-relaxed">
+              Apakah Anda yakin ingin <strong>mengirimkan pesanan baru</strong> untuk invoice{" "}
+              <strong className="text-white font-mono">{retryModal.invoice}</strong> ke provider?
+            </p>
+            <p className="text-amber-300 text-xs p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
+              ⚠️ <strong>PENTING:</strong> Tombol ini akan menembak transaksi baru dan <strong>dapat memotong saldo provider lagi</strong>. Jika saldo/shell Anda sudah terpotong di Kiosgamer sebelumnya, silakan <strong>Batal</strong> dan gunakan tombol <strong>"Cek Status Provider"</strong> (ikon refresh biru) agar saldo tidak terpotong ganda.
+            </p>
+          </div>
         }
-        confirmText="Ya, Kirim Ulang"
+        confirmText="Ya, Kirim Ulang Order"
         cancelText="Batal"
         variant="primary"
         isLoading={retryModal.isLoading}
