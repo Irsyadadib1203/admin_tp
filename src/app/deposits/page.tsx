@@ -180,7 +180,25 @@ export default function DepositsPage() {
                   <td className="py-3.5 px-4 font-bold text-emerald-400">
                     {formatRupiah(dep.total_amount)}
                   </td>
-                  <td className="py-3.5 px-4 text-slate-300">{dep.payment_method}</td>
+                  <td className="py-3.5 px-4 text-slate-300">
+                    <div>
+                      <span className="font-semibold block text-slate-200">{dep.payment_method}</span>
+                      {dep.payment_type === "instant" ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold inline-block mt-0.5">
+                          ⚡ Tripay Instan
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold inline-block mt-0.5">
+                           Manual Bank
+                        </span>
+                      )}
+                      {dep.tripay_reference && (
+                        <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
+                          Ref: {dep.tripay_reference}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-3.5 px-4">
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
@@ -210,6 +228,8 @@ export default function DepositsPage() {
                           <XCircle className="w-3 h-3" /> Tolak
                         </button>
                       </div>
+                    ) : dep.payment_type === "instant" ? (
+                      <span className="text-sky-400 text-[11px] font-mono">Otomatis Terverifikasi</span>
                     ) : (
                       <span className="text-slate-500 text-[11px]">Selesai</span>
                     )}
