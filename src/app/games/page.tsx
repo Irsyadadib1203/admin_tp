@@ -302,18 +302,55 @@ export default function GamesPage() {
               </h3>
 
               <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Nama Game *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Mobile Legends: Bang Bang"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Nama Game *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Mobile Legends: Bang Bang"
+                      value={formData.name}
+                      onChange={(e) => {
+                        const nameVal = e.target.value;
+                        if (!editingGame) {
+                          const autoSlug = nameVal
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/^-|-$/g, "");
+                          setFormData({
+                            ...formData,
+                            name: nameVal,
+                            slug: autoSlug,
+                          });
+                        } else {
+                          setFormData({ ...formData, name: nameVal });
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1 flex items-center justify-between">
+                      <span>Slug URL *</span>
+                      <span className="text-[10px] text-slate-500 font-mono">/game/{"{slug}"}</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="contoh: mobile-legends"
+                      value={formData.slug}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""),
+                        })
+                      }
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-indigo-400 font-mono text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -373,16 +410,47 @@ export default function GamesPage() {
                       <label className="block text-slate-400 mb-1">Checker Engine</label>
                       <select
                         value={formData.nickname_check_code}
-                        onChange={(e) =>
-                          setFormData({ ...formData, nickname_check_code: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          let needsZone = formData.has_zone_id;
+                          let userLabel = formData.user_id_label;
+                          let zoneLabel = formData.zone_id_label;
+
+                          if (val === "MOBILE_LEGENDS") {
+                            needsZone = true;
+                            userLabel = "User ID";
+                            zoneLabel = "Zone ID";
+                          } else if (val === "GENSHIN_IMPACT" || val === "HONKAI_STAR_RAIL") {
+                            needsZone = true;
+                            userLabel = "User ID (UID)";
+                            zoneLabel = "Pilih Server";
+                          } else if (val === "VALORANT") {
+                            needsZone = false;
+                            userLabel = "Riot ID";
+                          } else if (val === "FREE_FIRE" || val === "PUBG_MOBILE" || val === "AOV" || val === "CALL_OF_DUTY" || val === "HOK") {
+                            needsZone = false;
+                            userLabel = "Player ID / User ID";
+                          }
+
+                          setFormData({
+                            ...formData,
+                            nickname_check_code: val,
+                            has_zone_id: needsZone,
+                            user_id_label: userLabel,
+                            zone_id_label: zoneLabel,
+                          });
+                        }}
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none"
                       >
-                        <option value="">(Nonaktifkan)</option>
+                        <option value="">(Nonaktifkan / Tanpa Cek Nick)</option>
                         <option value="MOBILE_LEGENDS">Mobile Legends (ID + Zone)</option>
                         <option value="FREE_FIRE">Free Fire (User ID)</option>
-                        <option value="GENSHIN_IMPACT">Genshin Impact (UID)</option>
-                        <option value="PUBG_MOBILE">PUBG Mobile</option>
+                        <option value="PUBG_MOBILE">PUBG Mobile (User ID)</option>
+                        <option value="AOV">Arena of Valor / AOV (User ID)</option>
+                        <option value="CALL_OF_DUTY">Call of Duty Mobile / CODM (OpenID)</option>
+                        <option value="HOK">Honor of Kings / HOK (User ID)</option>
+                        <option value="GENSHIN_IMPACT">Genshin Impact (UID + Server)</option>
+                        <option value="HONKAI_STAR_RAIL">Honkai: Star Rail / HSR (UID + Server)</option>
                         <option value="VALORANT">Valorant (Riot ID)</option>
                       </select>
                     </div>
