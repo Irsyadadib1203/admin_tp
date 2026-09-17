@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
+import Pagination from "@/components/Pagination";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
@@ -53,6 +54,8 @@ export default function ArticlesPage() {
   const [formData, setFormData] = useState({ ...emptyForm });
   const [previewError, setPreviewError] = useState(false);
   const [filterCat, setFilterCat] = useState("Semua");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   // Confirm states
   const [confirmDelete, setConfirmDelete] = useState<{
@@ -79,6 +82,10 @@ export default function ArticlesPage() {
     `/admin/articles${filterCat !== "Semua" ? `?category=${filterCat}` : ""}`,
     fetcher
   );
+
+  const rawArticles = Array.isArray(articles) ? articles : [];
+  const totalItems = rawArticles.length;
+  const paginatedArticles = rawArticles.slice((page - 1) * limit, page * limit);
 
   const openCreate = () => {
     setEditingArticle(null);
@@ -196,7 +203,10 @@ export default function ArticlesPage() {
         {["Semua", ...CATEGORIES].map((cat) => (
           <button
             key={cat}
-            onClick={() => setFilterCat(cat)}
+            onClick={() => {
+              setFilterCat(cat);
+              setPage(1);
+            }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterCat === cat
                 ? "bg-indigo-600 text-white shadow-md"
@@ -222,8 +232,8 @@ export default function ArticlesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {articles && articles.length > 0 ? (
-                articles.map((a: any) => (
+              {paginatedArticles && paginatedArticles.length > 0 ? (
+                paginatedArticles.map((a: any) => (
                   <tr key={a.id} className="hover:bg-slate-800/20 transition-colors">
                     <td className="py-3.5 px-5">
                       <div className="flex items-center gap-3">
@@ -309,6 +319,16 @@ export default function ArticlesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination */}
+        <Pagination
+          currentPage={page}
+          totalItems={totalItems}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Modal Add/Edit Article */}

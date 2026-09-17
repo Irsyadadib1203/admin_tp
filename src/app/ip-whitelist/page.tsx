@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
+import Pagination from "@/components/Pagination";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 
 export default function IPWhitelistPage() {
   const [activeTab, setActiveTab] = useState<"whitelist" | "logs" | "watchlist">("whitelist");
   const [searchIP, setSearchIP] = useState("");
+  const [logPage, setLogPage] = useState(1);
+  const [logLimit, setLogLimit] = useState(20);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
 
@@ -359,7 +362,10 @@ export default function IPWhitelistPage() {
                 type="text"
                 placeholder="Cari log per IP..."
                 value={searchIP}
-                onChange={(e) => setSearchIP(e.target.value)}
+                onChange={(e) => {
+                  setSearchIP(e.target.value);
+                  setLogPage(1);
+                }}
                 className="bg-slate-900 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-64"
               />
             </div>
@@ -378,7 +384,9 @@ export default function IPWhitelistPage() {
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {accessLogs && accessLogs.length > 0 ? (
-                  accessLogs.map((log: any) => (
+                  accessLogs
+                    .slice((logPage - 1) * logLimit, logPage * logLimit)
+                    .map((log: any) => (
                     <tr key={log.id} className="hover:bg-slate-800/20 transition-colors">
                       <td className="py-3.5 px-5 text-slate-400 whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString("id-ID")}
@@ -418,6 +426,15 @@ export default function IPWhitelistPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Dynamic Pagination */}
+            <Pagination
+              currentPage={logPage}
+              totalItems={Array.isArray(accessLogs) ? accessLogs.length : 0}
+              limit={logLimit}
+              onPageChange={setLogPage}
+              onLimitChange={setLogLimit}
+            />
           </div>
         </div>
       )}

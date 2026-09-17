@@ -6,11 +6,14 @@ import { Wallet, CheckCircle2, XCircle, Clock, Search, RefreshCw } from "lucide-
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
 import PromptModal from "@/components/PromptModal";
+import Pagination from "@/components/Pagination";
 
-const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
+const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function DepositsPage() {
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   // Confirmation states
   const [approveModal, setApproveModal] = useState<{
@@ -39,10 +42,13 @@ export default function DepositsPage() {
     isLoading: false,
   });
 
-  const { data: deposits, mutate, isLoading } = useSWR(
-    `/admin/deposits?status=${statusFilter}`,
-    fetcher
+  const { data: resData, mutate, isLoading } = useSWR(
+    `/admin/deposits?page=${page}&limit=${limit}&status=${statusFilter}`,
+    paginatedFetcher
   );
+
+  const deposits = Array.isArray(resData?.data) ? resData.data : [];
+  const totalItems = resData?.meta?.total ?? deposits.length;
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -113,7 +119,10 @@ export default function DepositsPage() {
         <div className="flex items-center gap-3">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
           >
             <option value="">Semua Status</option>
@@ -245,6 +254,16 @@ export default function DepositsPage() {
             )}
           </tbody>
         </table>
+
+        {/* Dynamic Pagination */}
+        <Pagination
+          currentPage={page}
+          totalItems={totalItems}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Confirmation Modal - Approve Deposit */}

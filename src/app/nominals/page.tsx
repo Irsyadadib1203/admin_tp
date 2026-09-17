@@ -22,13 +22,17 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
+import Pagination from "@/components/Pagination";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
+const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function NominalsPage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNominal, setEditingNominal] = useState<any | null>(null);
 
@@ -77,13 +81,16 @@ export default function NominalsPage() {
   const { data: games } = useSWR("/admin/games", fetcher);
   const { data: providers } = useSWR("/admin/providers", fetcher);
   const {
-    data: nominals,
+    data: resData,
     mutate,
     isLoading,
   } = useSWR(
-    `/admin/nominals?game_id=${selectedGame}&provider_id=${selectedProvider}&search=${search}`,
-    fetcher
+    `/admin/nominals?page=${page}&limit=${limit}&game_id=${selectedGame}&provider_id=${selectedProvider}&search=${search}`,
+    paginatedFetcher
   );
+
+  const nominals = Array.isArray(resData?.data) ? resData.data : [];
+  const totalItems = resData?.meta?.total ?? nominals.length;
 
   const [formData, setFormData] = useState({
     game_id: 1,
@@ -351,7 +358,10 @@ export default function NominalsPage() {
           <div className="flex-1 sm:flex-initial">
             <select
               value={selectedGame}
-              onChange={(e) => setSelectedGame(e.target.value)}
+              onChange={(e) => {
+                setSelectedGame(e.target.value);
+                setPage(1);
+              }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="">Semua Game</option>
@@ -367,7 +377,10 @@ export default function NominalsPage() {
           <div className="flex-1 sm:flex-initial">
             <select
               value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
+              onChange={(e) => {
+                setSelectedProvider(e.target.value);
+                setPage(1);
+              }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="">Semua Provider</option>
@@ -387,7 +400,10 @@ export default function NominalsPage() {
             type="text"
             placeholder="Cari item / SKU..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
           />
         </div>
@@ -521,6 +537,16 @@ export default function NominalsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination */}
+        <Pagination
+          currentPage={page}
+          totalItems={totalItems}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Modal Add / Edit Nominal */}

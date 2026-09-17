@@ -22,13 +22,15 @@ import {
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
 import PromptModal from "@/components/PromptModal";
+import Pagination from "@/components/Pagination";
 
-const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
+const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
 
   // Response Provider Modal State
@@ -83,11 +85,14 @@ export default function TransactionsPage() {
 
   const [checkingStatusTxId, setCheckingStatusTxId] = useState<number | null>(null);
 
-  const { data: transactions, mutate, isLoading } = useSWR(
-    `/admin/transactions?page=${page}&limit=20&status=${statusFilter}&search=${search}`,
-    fetcher,
+  const { data: resData, mutate, isLoading } = useSWR(
+    `/admin/transactions?page=${page}&limit=${limit}&status=${statusFilter}&search=${search}`,
+    paginatedFetcher,
     { refreshInterval: 10000 }
   );
+
+  const transactions = Array.isArray(resData?.data) ? resData.data : [];
+  const totalItems = resData?.meta?.total ?? transactions.length;
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -459,6 +464,16 @@ export default function TransactionsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination */}
+        <Pagination
+          currentPage={page}
+          totalItems={totalItems}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Response Provider JSON Modal */}

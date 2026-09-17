@@ -6,11 +6,14 @@ import { createPortal } from "react-dom";
 import { Users, Plus, Edit2, Key, Wallet, Shield, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
+import Pagination from "@/components/Pagination";
 
-const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
+const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 
 export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
@@ -32,10 +35,13 @@ export default function UsersPage() {
     isLoading: false,
   });
 
-  const { data: users, mutate, isLoading } = useSWR(
-    `/admin/users?role=${roleFilter}`,
-    fetcher
+  const { data: resData, mutate, isLoading } = useSWR(
+    `/admin/users?page=${page}&limit=${limit}&role=${roleFilter}`,
+    paginatedFetcher
   );
+
+  const users = Array.isArray(resData?.data) ? resData.data : [];
+  const totalItems = resData?.meta?.total ?? users.length;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -134,7 +140,10 @@ export default function UsersPage() {
         <div className="flex items-center gap-3">
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
           >
             <option value="">Semua Peran</option>
@@ -249,6 +258,16 @@ export default function UsersPage() {
             )}
           </tbody>
         </table>
+
+        {/* Dynamic Pagination */}
+        <Pagination
+          currentPage={page}
+          totalItems={totalItems}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Modal Edit User & Balance */}
