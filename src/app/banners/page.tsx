@@ -67,7 +67,7 @@ export default function BannersPage() {
   const openEdit = (b: any) => {
     setEditingBanner(b);
     setFormData({
-      title: b.title,
+      title: b.title || "",
       subtitle: b.subtitle || "",
       image_url: b.image_url,
       link_url: b.link_url || "",
@@ -182,7 +182,7 @@ export default function BannersPage() {
                 {b.image_url ? (
                   <img
                     src={b.image_url}
-                    alt={b.title}
+                    alt={b.title || "Banner"}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = "none";
@@ -195,7 +195,7 @@ export default function BannersPage() {
                       {b.badge_text}
                     </span>
                   )}
-                  <p className="text-sm font-bold text-white line-clamp-1">{b.title}</p>
+                  <p className="text-sm font-bold text-white line-clamp-1">{b.title || <span className="italic text-slate-400 font-normal">(Tanpa Judul)</span>}</p>
                   {b.subtitle && (
                     <p className="text-[10px] text-slate-300 line-clamp-1 mt-0.5">{b.subtitle}</p>
                   )}
@@ -240,7 +240,7 @@ export default function BannersPage() {
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => promptDelete(b.id, b.title)}
+                    onClick={() => promptDelete(b.id, b.title || "(tanpa judul)")}
                     className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
                     title="Hapus Banner"
                   >
@@ -306,11 +306,10 @@ export default function BannersPage() {
 
                 <div>
                   <label className="block text-slate-300 font-medium mb-1.5">
-                    Judul Banner <span className="text-rose-400">*</span>
+                    Judul Banner 
                   </label>
                   <input
                     type="text"
-                    required
                     placeholder="PROMO SPESIAL TOP UP GAME"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -423,7 +422,9 @@ export default function BannersPage() {
         message={
           <>
             Apakah Anda yakin ingin memperbarui banner{" "}
-            <strong className="text-white font-semibold">{formData.title}</strong>?
+            <strong className="text-white font-semibold">
+              {formData.title || "(tanpa judul)"}
+            </strong>?
           </>
         }
         confirmText="Ya, Simpan"
