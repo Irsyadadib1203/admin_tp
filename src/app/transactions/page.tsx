@@ -18,6 +18,7 @@ import {
   Check,
   Server,
   Zap,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -25,6 +26,7 @@ import PromptModal from "@/components/PromptModal";
 import Pagination from "@/components/Pagination";
 
 const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
+const PUBLIC_CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || "http://localhost:3000";
 
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
@@ -330,12 +332,24 @@ export default function TransactionsPage() {
                   <tr key={tx.id} className="hover:bg-slate-800/20 transition-colors">
                     <td className="py-3.5 px-5">
                       <div>
-                        <span className="font-mono font-bold text-slate-200 block">
-                          {tx.invoice_number}
-                        </span>
-                        <span className="text-[10px] text-slate-500">
+                        <a
+                          href={`${PUBLIC_CLIENT_URL}/invoice/${tx.invoice_number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono font-bold text-indigo-400 hover:text-indigo-300 transition-colors inline-flex items-center gap-1 group"
+                          title="Buka halaman invoice publik"
+                        >
+                          <span>{tx.invoice_number}</span>
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                        <span className="text-[10px] text-slate-500 block">
                           {new Date(tx.created_at).toLocaleString("id-ID")}
                         </span>
+                        {tx.sn && (
+                          <span className="text-[10px] font-mono text-emerald-400 block truncate max-w-[160px]" title={tx.sn}>
+                            SN: {tx.sn}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
@@ -528,8 +542,11 @@ export default function TransactionsPage() {
 
               <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
                 <span className="text-[10px] text-slate-400 block">Serial Number (SN):</span>
-                <span className="font-mono text-xs text-slate-200 truncate block" title={responseModal.tx.payment_reference}>
-                  {responseModal.tx.payment_reference || "-"}
+                <span
+                  className="font-mono text-xs text-emerald-300 truncate block"
+                  title={responseModal.tx.sn || responseModal.tx.payment_reference}
+                >
+                  {responseModal.tx.sn || responseModal.tx.payment_reference || "-"}
                 </span>
               </div>
 
@@ -628,9 +645,16 @@ export default function TransactionsPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
                 <h3 className="text-base font-bold text-white">Detail Transaksi</h3>
-                <span className="text-xs font-mono text-indigo-400 font-bold">
+                <a
+                  href={`${PUBLIC_CLIENT_URL}/invoice/${selectedTx.invoice_number}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-mono text-indigo-400 font-bold hover:text-indigo-300 inline-flex items-center gap-1 transition-colors"
+                  title="Buka invoice publik"
+                >
                   {selectedTx.invoice_number}
-                </span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
               <button
                 onClick={() => setSelectedTx(null)}
@@ -675,7 +699,7 @@ export default function TransactionsPage() {
 
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400 block">Status Provider Digiflazz:</span>
+                  <span className="text-slate-400 block">Status Provider:</span>
                   <span className="text-[11px] text-indigo-300 font-mono font-bold flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                     <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
                     {calculateSpeed(selectedTx)}
@@ -684,9 +708,14 @@ export default function TransactionsPage() {
                 <span className="font-semibold text-amber-300 block">
                   {selectedTx.provider_status || "Pending"}
                 </span>
-                <span className="text-slate-400 block">
-                  SN: {selectedTx.payment_reference || "-"}
-                </span>
+                {(selectedTx.sn || selectedTx.payment_reference) && (
+                  <div className="mt-1 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <span className="text-[10px] text-emerald-400 block font-bold mb-0.5">Serial Number (SN):</span>
+                    <span className="font-mono text-xs text-emerald-300 break-all block">
+                      {selectedTx.sn || selectedTx.payment_reference}
+                    </span>
+                  </div>
+                )}
                 <span className="text-slate-500 block truncate">
                   Pesan: {selectedTx.provider_message || "-"}
                 </span>
