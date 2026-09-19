@@ -144,10 +144,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-slate-500">
-          Default Superadmin: <span className="text-slate-400">admin@topup.com</span> /{" "}
-          <span className="text-slate-400">admin123</span>
-        </div>
+        
       </div>
     </div>
   );
