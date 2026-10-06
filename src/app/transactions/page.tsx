@@ -96,6 +96,11 @@ export default function TransactionsPage() {
   const transactions = Array.isArray(resData?.data) ? resData.data : [];
   const totalItems = resData?.meta?.total ?? transactions.length;
 
+  // Retry hanya untuk transaksi yang belum mencapai hasil final. Ini mencegah
+  // order provider yang sudah gagal/refund diproses ulang tanpa keputusan baru.
+  const canRetryTransaction = (status?: string) =>
+    status === "pending" || status === "processing";
+
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -441,13 +446,15 @@ export default function TransactionsPage() {
                         {tx.status !== "success" && (
                           <>
                             {/* Tombol 2: Proses Ulang (Kirim Order Baru) */}
-                            <button
-                              onClick={() => handleRetryPrompt(tx)}
-                              className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-colors"
-                              title="Proses Ulang (Kirim Order Baru ke Provider)"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
+                            {canRetryTransaction(tx.status) && (
+                              <button
+                                onClick={() => handleRetryPrompt(tx)}
+                                className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-colors"
+                                title="Proses Ulang (Kirim Order Baru ke Provider)"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleSuccessPrompt(tx)}
                               className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition-colors"
@@ -747,12 +754,14 @@ export default function TransactionsPage() {
 
               {selectedTx.status !== "success" && (
                 <>
-                  <button
-                    onClick={() => handleRetryPrompt(selectedTx)}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
-                  >
-                    Proses Ulang Order
-                  </button>
+                  {canRetryTransaction(selectedTx.status) && (
+                    <button
+                      onClick={() => handleRetryPrompt(selectedTx)}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                    >
+                      Proses Ulang Order
+                    </button>
+                  )}
                   <button
                     onClick={() => handleSuccessPrompt(selectedTx)}
                     className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
