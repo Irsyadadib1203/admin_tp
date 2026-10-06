@@ -33,6 +33,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
         return "Digiflazz Command Center";
       case "/kiosgamer":
         return "Kiosgamer Command Center";
+      case "/ffzstore":
+        return "FFZStore OtoMax Center";
+      case "/providers":
+        return "Providers Center";
       case "/ip-whitelist":
         return "IP Whitelist & Security Guard";
       case "/users":

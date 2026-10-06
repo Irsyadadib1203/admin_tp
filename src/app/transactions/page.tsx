@@ -134,16 +134,25 @@ export default function TransactionsPage() {
     return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
   };
 
+  const providerExchange = (tx: any) => {
+    const fallbackRequest = {
+      action: "purchase", ref_id: tx?.ref_id || "-", customer_no: tx?.customer_id + (tx?.server_id ? `(${tx.server_id})` : ""),
+      product_code: tx?.nominal?.provider_product_code || "-",
+    };
+    if (!tx?.provider_callback_data) return { request: fallbackRequest, response: null };
+    try {
+      const parsed = JSON.parse(tx.provider_callback_data);
+      if (parsed && (parsed.request || parsed.response)) return { request: parsed.request || fallbackRequest, response: parsed.response || null };
+      return { request: fallbackRequest, response: parsed };
+    } catch {
+      return { request: fallbackRequest, response: tx.provider_callback_data };
+    }
+  };
+
   const formatJSONResponse = (tx: any) => {
     if (!tx) return "{}";
-    if (tx.provider_callback_data) {
-      try {
-        const parsed = JSON.parse(tx.provider_callback_data);
-        return JSON.stringify(parsed, null, 2);
-      } catch (e) {
-        return tx.provider_callback_data;
-      }
-    }
+    const exchange = providerExchange(tx);
+    if (exchange.response) return typeof exchange.response === "string" ? exchange.response : JSON.stringify(exchange.response, null, 2);
     // Fallback constructed provider metadata
     const fallback = {
       ref_id: tx.ref_id || "-",
@@ -157,6 +166,8 @@ export default function TransactionsPage() {
     };
     return JSON.stringify(fallback, null, 2);
   };
+
+  const formatJSONRequest = (tx: any) => JSON.stringify(providerExchange(tx).request, null, 2);
 
   const copyResponseJSON = (tx: any) => {
     const formatted = formatJSONResponse(tx);
@@ -509,7 +520,7 @@ export default function TransactionsPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    Response Provider (Digiflazz / Gateway)
+                    Request & Response Provider
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs font-mono font-bold text-indigo-400">
@@ -573,12 +584,12 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            {/* Raw JSON Code Container */}
+            {/* Request / Response audit container */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                   <Code2 className="w-4 h-4 text-indigo-400" />
-                  Payload JSON Asli (Callback / API Response):
+                  Request Provider (credential/signature disensor):
                 </span>
                 <button
                   onClick={() => copyResponseJSON(responseModal.tx)}
@@ -599,7 +610,18 @@ export default function TransactionsPage() {
               </div>
 
               <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                <pre className="p-4 text-xs font-mono text-emerald-400 overflow-x-auto max-h-72 leading-relaxed selection:bg-indigo-500 selection:text-white">
+                <pre className="p-4 text-xs font-mono text-sky-300 overflow-x-auto max-h-52 leading-relaxed selection:bg-indigo-500 selection:text-white">
+                  {formatJSONRequest(responseModal.tx)}
+                </pre>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Code2 className="w-4 h-4 text-emerald-400" />
+                  Response Provider (Callback / API):
+                </span>
+              </div>
+              <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
+                <pre className="p-4 text-xs font-mono text-emerald-400 overflow-x-auto max-h-52 leading-relaxed selection:bg-indigo-500 selection:text-white">
                   {formatJSONResponse(responseModal.tx)}
                 </pre>
               </div>
@@ -608,7 +630,7 @@ export default function TransactionsPage() {
             {/* Footer Note & Actions */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
               <p className="text-[11px] text-slate-500">
-                Respon disimpan otomatis saat provider mengirim callback atau saat status dicek.
+                Request dan respons terakhir disimpan otomatis tanpa credential provider.
               </p>
               <div className="flex items-center gap-2">
                 <button

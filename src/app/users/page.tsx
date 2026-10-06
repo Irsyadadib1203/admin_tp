@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { createPortal } from "react-dom";
-import { Users, Plus, Edit2, Key, Wallet, Shield, Check, X } from "lucide-react";
+import { Users, Plus, Edit2, Key, Wallet, Shield, Check, X, Copy } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
 import Pagination from "@/components/Pagination";
@@ -231,9 +231,14 @@ export default function UsersPage() {
                   </td>
                   <td className="py-3.5 px-4 font-mono text-[11px]">
                     {u.api_key ? (
-                      <span className="text-amber-400 font-semibold">
-                        {u.api_key.key}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(u.api_key.key)}
+                        title="Salin API key"
+                        className="inline-flex items-center gap-1 text-amber-400 font-semibold hover:text-amber-300"
+                      >
+                        {u.api_key.key}<Copy className="w-3 h-3" />
+                      </button>
                     ) : (
                       <span className="text-slate-500">-</span>
                     )}

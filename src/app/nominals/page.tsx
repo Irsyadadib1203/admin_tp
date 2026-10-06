@@ -601,8 +601,8 @@ export default function NominalsPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold text-indigo-300"
                     >
                       {providers?.map((p: any) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.code})
+                        <option key={p.id} value={p.id} disabled={!p.is_active}>
+                          {p.name} ({p.code}){!p.is_active ? " — belum dikonfigurasi" : ""}
                         </option>
                       ))}
                     </select>
@@ -660,12 +660,12 @@ export default function NominalsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">
-                      SKU Digiflazz *
+                      SKU Provider Utama *
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="ML86 / FF140"
+                      placeholder="Contoh: ML86 / kode produk provider"
                       value={formData.provider_product_code}
                       onChange={(e) =>
                         setFormData({ ...formData, provider_product_code: e.target.value })
@@ -703,6 +703,17 @@ export default function NominalsPage() {
                     />
                   </div>
                 </div>
+
+                {editingNominal && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <div className="mb-3 flex items-center justify-between"><div><h4 className="text-sm font-semibold text-white">Harga Denom per Provider</h4><p className="text-[11px] text-slate-400">SKU dan harga modal mapping provider untuk nominal ini.</p></div></div>
+                    {(editingNominal.provider_products || []).length === 0 ? (
+                      <p className="text-xs text-amber-300">Belum ada mapping provider tambahan. Mapping provider utama akan dibuat dari SKU di atas saat nominal disimpan.</p>
+                    ) : (
+                      <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-slate-800 text-slate-400"><tr><th className="pb-2 pr-3">Provider</th><th className="pb-2 pr-3">SKU</th><th className="pb-2">Harga Modal</th></tr></thead><tbody className="divide-y divide-slate-800">{editingNominal.provider_products.map((mapping: any) => <tr key={mapping.id}><td className="py-2 pr-3 font-semibold text-indigo-300">{mapping.provider?.name || `Provider #${mapping.provider_id}`}</td><td className="py-2 pr-3 font-mono text-slate-200">{mapping.product_code}</td><td className="py-2 text-emerald-300">{mapping.cost_price != null ? formatRupiah(mapping.cost_price) : "-"}</td></tr>)}</tbody></table></div>
+                    )}
+                  </div>
+                )}
 
                 {/* Pricing Calculation Box */}
                 <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
