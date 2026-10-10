@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import {
   Receipt,
@@ -87,6 +87,12 @@ export default function TransactionsPage() {
 
   const [checkingStatusTxId, setCheckingStatusTxId] = useState<number | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkModal, setBulkModal] = useState<{ isOpen: boolean; action: "retry" | "success" | "fail" | null; notes: string; isLoading: boolean }>({ isOpen: false, action: null, notes: "", isLoading: false });
+  const [bulkResult, setBulkResult] = useState<any | null>(null);
+
+  useEffect(() => { setSelectedIds([]); }, [page, limit, statusFilter, search]);
+
   const { data: resData, mutate, isLoading } = useSWR(
     `/admin/transactions?page=${page}&limit=${limit}&status=${statusFilter}&search=${search}`,
     paginatedFetcher,
@@ -95,6 +101,27 @@ export default function TransactionsPage() {
 
   const transactions = Array.isArray(resData?.data) ? resData.data : [];
   const totalItems = resData?.meta?.total ?? transactions.length;
+
+  const selectableTxs = transactions.filter((tx: any) => tx.status === "processing");
+  const allSelected = selectableTxs.length > 0 && selectableTxs.every((tx: any) => selectedIds.includes(tx.id));
+  const toggleOne = (id: number) => setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggleAll = () => setSelectedIds(allSelected ? [] : selectableTxs.map((tx: any) => tx.id));
+  const openBulk = (action: "retry" | "success" | "fail") => setBulkModal({ isOpen: true, action, notes: "", isLoading: false });
+
+  const executeBulk = async () => {
+    if (!bulkModal.action || selectedIds.length === 0) return;
+    setBulkModal((p) => ({ ...p, isLoading: true }));
+    try {
+      const res = await api.post("/admin/transactions/bulk", { action: bulkModal.action, ids: selectedIds, notes: bulkModal.notes });
+      setBulkResult(res.data?.data);
+      setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false });
+      setSelectedIds([]);
+      mutate();
+    } catch (err: any) {
+      setBulkModal((p) => ({ ...p, isLoading: false }));
+      alert("Gagal menjalankan aksi massal: " + (err.response?.data?.message || err.message));
+    }
+  };
 
   // Retry hanya untuk transaksi yang belum mencapai hasil final. Ini mencegah
   // order provider yang sudah gagal/refund diproses ulang tanpa keputusan baru.
@@ -325,6 +352,17 @@ export default function TransactionsPage() {
           </button>
         </div>
       </div>
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl px-4 py-3">
+          <span className="text-xs text-indigo-200 font-semibold">{selectedIds.length} transaksi dipilih</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => openBulk("retry")} className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5" />Rehit</button>
+            <button onClick={() => openBulk("success")} className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />Set Sukses</button>
+            <button onClick={() => openBulk("fail")} className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" />Set Gagal</button>
+            <button onClick={() => setSelectedIds([])} className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Batal Pilih</button>
+          </div>
+        </div>
+      )}
 
       {/* Transactions Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -332,6 +370,9 @@ export default function TransactionsPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/40">
+                <th className="py-3.5 pl-5 pr-2 w-8">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} disabled={selectableTxs.length === 0} className="accent-indigo-500" title="Pilih semua yang berstatus processing di halaman ini" />
+              </th>
                 <th className="py-3.5 px-5">Invoice & Waktu</th>
                 <th className="py-3.5 px-4">Game & Nominal</th>
                 <th className="py-3.5 px-4">Tujuan Akun</th>
@@ -346,6 +387,9 @@ export default function TransactionsPage() {
               {transactions && transactions.length > 0 ? (
                 transactions.map((tx: any) => (
                   <tr key={tx.id} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="py-3.5 pl-5 pr-2">
+                      <input type="checkbox" checked={selectedIds.includes(tx.id)} onChange={() => toggleOne(tx.id)} disabled={tx.status !== "processing"} className="accent-indigo-500 disabled:opacity-30" />
+                    </td>
                     <td className="py-3.5 px-5">
                       <div>
                         <a
@@ -488,7 +532,7 @@ export default function TransactionsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-500">
                     {isLoading ? "Memuat transaksi..." : "Tidak ada data transaksi."}
                   </td>
                 </tr>
@@ -809,6 +853,49 @@ export default function TransactionsPage() {
         </div>
       )}
 
+      {bulkModal.isOpen && bulkModal.action && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-white">
+              {bulkModal.action === "retry" ? "Rehit" : bulkModal.action === "success" ? "Set Sukses Manual" : "Set Gagal Manual"} ({selectedIds.length} transaksi)
+            </h3>
+            <p className="text-xs text-amber-300 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
+              {bulkModal.action === "retry" && "Rehit hanya mengirim ulang jika pesanan belum pernah sampai ke provider. Jika sudah ada order di provider, sistem hanya mengecek statusnya."}
+              {bulkModal.action === "success" && "SN dibuat otomatis: (nickname/ID). RefId : (invoice). Pastikan barang benar-benar sudah terkirim."}
+              {bulkModal.action === "fail" && "Saldo dikembalikan otomatis hanya untuk pembayaran SALDO. Pembayaran non-saldo (Tripay) TIDAK dikembalikan otomatis. Jalankan Cek Status Provider dulu agar tidak menggagalkan transaksi yang sebenarnya sukses."}
+            </p>
+            {bulkModal.action !== "retry" && (
+              <input value={bulkModal.notes} onChange={(e) => setBulkModal((p) => ({ ...p, notes: e.target.value }))}
+                placeholder="Catatan admin (opsional)" className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200" />
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false })} className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Batal</button>
+              <button onClick={executeBulk} disabled={bulkModal.isLoading} className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50">
+                {bulkModal.isLoading ? "Memproses..." : "Jalankan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-3">
+            <h3 className="text-base font-bold text-white">Hasil Aksi Massal: {bulkResult.succeeded} berhasil, {bulkResult.failed} gagal/dilewati</h3>
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-800 text-xs">
+              {bulkResult.results?.map((r: any) => (
+                <div key={r.id} className="py-2 flex items-start gap-2">
+                  <span className={r.success ? "text-emerald-400" : "text-rose-400"}>{r.success ? "✓" : "✗"}</span>
+                  <div><span className="font-mono text-slate-200">{r.invoice_number || `#${r.id}`}</span>
+                    <span className="text-slate-400 block">{r.message}</span></div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end"><button onClick={() => setBulkResult(null)} className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Tutup</button></div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal - Retry Provider */}
       <ConfirmModal
         isOpen={retryModal.isOpen}
@@ -847,8 +934,8 @@ export default function TransactionsPage() {
           {
             name: "sn",
             label: "Serial Number (SN) / Kode Voucher",
-            placeholder: "Contoh: MLBB86-123456789 atau No. Bukti Pengiriman",
-            required: true,
+            placeholder: "Kosongkan = otomatis (nickname/ID. RefId : invoice)",
+            required: false,
           },
           {
             name: "notes",
