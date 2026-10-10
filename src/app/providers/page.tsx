@@ -60,6 +60,7 @@ type DigiflazzSettings = {
   username: string;
   is_active: boolean;
   api_key_configured: boolean;
+  secret_configured?: boolean;
 };
 
 type KiosgamerStatus = {
@@ -101,6 +102,7 @@ export default function ProvidersPage() {
   // Digiflazz State
   const [digi, setDigi] = useState<DigiflazzSettings | null>(null);
   const [digiUsername, setDigiUsername] = useState("");
+  const [digiSecret, setDigiSecret] = useState("");
 
   // Kiosgamer States
   const [kiosStatus, setKiosStatus] = useState<KiosgamerStatus | null>(null);
@@ -184,6 +186,7 @@ export default function ProvidersPage() {
     setSelected(item);
     setNotice("");
     setAPIKey("");
+    setDigiSecret("");
     setName(item.name);
     setBaseURL(item.base_url);
     setIsActive(item.is_active);
@@ -255,9 +258,13 @@ export default function ProvidersPage() {
         base_url: baseURL,
         username: digiUsername,
         api_key: apiKey,
+        secret: digiSecret,
         is_active: isActive,
       });
       setAPIKey("");
+      setDigiSecret("");
+      const fresh = await api.get("/admin/providers/digiflazz");
+      setDigi(fresh.data.data);
       await mutate();
       setNotice("Konfigurasi Digiflazz tersimpan.");
     } catch (error: any) {
@@ -579,6 +586,27 @@ export default function ProvidersPage() {
                     />
                   </div>
                 </div>
+                <div>
+                  
+                <label className="block text-slate-300 font-medium mb-1">
+                  Webhook Secret Digiflazz{" "}
+                  {digi?.secret_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                </label>
+                <div className="relative">
+                  <ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <input
+                    type="password"
+                    value={digiSecret}
+                    onChange={(e) => setDigiSecret(e.target.value)}
+                    placeholder={
+                      digi?.secret_configured
+                        ? "Kosongkan untuk mempertahankan secret saat ini"
+                        : "Masukkan secret webhook Digiflazz"
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100"
+                  />
+                </div>
+              </div>
 
                 <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer">
                   <input
