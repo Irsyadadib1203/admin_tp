@@ -161,9 +161,20 @@ export default function TransactionsPage() {
     return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
   };
 
+  const getProviderName = (tx: any) => {
+    return (
+      tx?.provider?.name ||
+      tx?.nominal?.provider?.name ||
+      (tx?.provider_id === 2 ? "Kiosgamer" : tx?.provider_id === 3 ? "FFZStore" : "Digiflazz")
+    );
+  };
+
   const providerExchange = (tx: any) => {
     const fallbackRequest = {
-      action: "purchase", ref_id: tx?.ref_id || "-", customer_no: tx?.customer_id + (tx?.server_id ? `(${tx.server_id})` : ""),
+      provider: getProviderName(tx),
+      action: "purchase",
+      ref_id: tx?.ref_id || "-",
+      customer_no: tx?.customer_id + (tx?.server_id ? `(${tx.server_id})` : ""),
       product_code: tx?.nominal?.provider_product_code || "-",
     };
     if (!tx?.provider_callback_data) return { request: fallbackRequest, response: null };
@@ -182,6 +193,7 @@ export default function TransactionsPage() {
     if (exchange.response) return typeof exchange.response === "string" ? exchange.response : JSON.stringify(exchange.response, null, 2);
     // Fallback constructed provider metadata
     const fallback = {
+      provider: getProviderName(tx),
       ref_id: tx.ref_id || "-",
       provider_status: tx.provider_status || "Pending",
       provider_message: tx.provider_message || "Menunggu notifikasi webhook provider",
@@ -565,6 +577,9 @@ export default function TransactionsPage() {
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     Request & Response Provider
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
+                      {getProviderName(responseModal.tx)}
+                    </span>
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs font-mono font-bold text-indigo-400">
@@ -573,6 +588,10 @@ export default function TransactionsPage() {
                     <span className="text-[11px] text-slate-500">•</span>
                     <span className="text-[11px] font-mono text-slate-400">
                       RefID: {responseModal.tx.ref_id || "-"}
+                    </span>
+                    <span className="text-[11px] text-slate-500">•</span>
+                    <span className="text-[11px] font-semibold text-slate-300">
+                      Provider: <span className="text-amber-300 font-bold">{getProviderName(responseModal.tx)}</span>
                     </span>
                   </div>
                 </div>
@@ -586,7 +605,14 @@ export default function TransactionsPage() {
             </div>
 
             {/* Quick Metadata Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Nama Provider:</span>
+                <span className="font-bold text-xs text-indigo-300 truncate block">
+                  {getProviderName(responseModal.tx)}
+                </span>
+              </div>
+
               <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
                 <span className="text-[10px] text-slate-400 block">Status Provider:</span>
                 <span
