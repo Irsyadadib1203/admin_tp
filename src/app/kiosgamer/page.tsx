@@ -31,7 +31,7 @@ export default function KiosgamerCenterPage() {
     fetcher
   );
 
-  const { data: games } = useSWR("/admin/games", fetcher);
+  const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
 
   const [sessionKey, setSessionKey] = useState("");
   const [totpSecret, setTotpSecret] = useState("");

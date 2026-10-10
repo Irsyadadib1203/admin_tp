@@ -46,15 +46,17 @@ export default function PromptModal({
   isLoading = false,
 }: PromptModalProps) {
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const prevOpenRef = React.useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       const initial: Record<string, string> = {};
       fields.forEach((f) => {
         initial[f.name] = f.defaultValue || "";
       });
       setFormValues(initial);
     }
+    prevOpenRef.current = isOpen;
   }, [isOpen, fields]);
 
   useEffect(() => {

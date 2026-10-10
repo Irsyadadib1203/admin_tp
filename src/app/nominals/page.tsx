@@ -78,7 +78,7 @@ export default function NominalsPage() {
     isLoading: false,
   });
 
-  const { data: games } = useSWR("/admin/games", fetcher);
+  const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
   const { data: providers } = useSWR("/admin/providers", fetcher);
   const {
     data: resData,

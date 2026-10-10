@@ -32,7 +32,7 @@ export default function DigiflazzCenterPage() {
 
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  const { data: games } = useSWR("/admin/games", fetcher);
+  const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
   const { data: balanceData, mutate: refreshBalance, isLoading: balanceLoading } = useSWR(
     "/admin/digiflazz/balance",
     fetcher
