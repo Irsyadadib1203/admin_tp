@@ -60,6 +60,9 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
+  const [providerStatusFilter, setProviderStatusFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Response Provider Modal State
   const [responseModal, setResponseModal] = useState<{
@@ -119,8 +122,27 @@ export default function TransactionsPage() {
 
   useEffect(() => { setSelectedIds([]); }, [page, limit, statusFilter, search]);
 
+  
+  const queryParams = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    search,
+  });
+
+  if (providerStatusFilter) {
+    queryParams.set("provider_status", providerStatusFilter);
+  }
+
+  if (startDate) {
+    queryParams.set("start_date", startDate);
+  }
+
+  if (endDate) {
+    queryParams.set("end_date", endDate);
+  }
+
   const { data: resData, mutate, isLoading } = useSWR(
-    `/admin/transactions?page=${page}&limit=${limit}&status=${statusFilter}&search=${search}`,
+    `/admin/transactions?${queryParams.toString()}`,
     paginatedFetcher,
     { refreshInterval: 10000 }
   );
@@ -350,22 +372,50 @@ const copyBlock = (key: "request" | "response", text: string) => {
           </p>
         </div>
 
+        
         <div className="flex flex-wrap items-center gap-3">
           <select
-            value={statusFilter}
+            value={providerStatusFilter}
             onChange={(e) => {
-              setStatusFilter(e.target.value);
+              setProviderStatusFilter(e.target.value);
               setPage(1);
             }}
             className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
           >
-            <option value="">Semua Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="success">Success</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
+            <option value="">Semua Status Provider</option>
+            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Sukses">Sukses</option>
+            <option value="Gagal">Gagal</option>
           </select>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs text-slate-400">Dari</label>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate || undefined}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+              className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              aria-label="Tanggal mulai"
+            />
+
+            <label className="text-xs text-slate-400">Sampai</label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+              className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              aria-label="Tanggal akhir"
+            />
+          </div>
 
           <div className="relative">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -387,6 +437,19 @@ const copyBlock = (key: "request" | "response", text: string) => {
             title="Refresh Data"
           >
             <RefreshCw className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              setProviderStatusFilter("");
+              setStartDate("");
+              setEndDate("");
+              setSearch("");
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs"
+          >
+            Reset Filter
           </button>
         </div>
       </div>
@@ -490,21 +553,48 @@ const copyBlock = (key: "request" | "response", text: string) => {
                         )}
                       </div>
                     </td>
+                    
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
-                          tx.status === "success"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : tx.status === "processing" || tx.status === "pending"
-                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                            : tx.status === "refunded"
-                            ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                        }`}
-                      >
-                        {tx.status.toUpperCase()}
-                      </span>
+                      <div className="flex flex-col items-start gap-1.5">
+                        {/* Status transaksi internal */}
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                            tx.status === "success"
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : tx.status === "processing" || tx.status === "pending"
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              : tx.status === "refunded"
+                              ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                          }`}
+                        >
+                          {tx.status?.toUpperCase() || "UNKNOWN"}
+                        </span>
+
+                        {/* Status dari provider */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] text-slate-500">
+                            Provider
+                          </span>
+
+                          <span
+                            className={`text-[11px] font-medium break-words ${
+                              /sukses|success/i.test(tx.provider_status || "")
+                                ? "text-emerald-400"
+                                : /gagal|failed|error/i.test(tx.provider_status || "")
+                                ? "text-rose-400"
+                                : /pending|processing/i.test(tx.provider_status || "")
+                                ? "text-amber-300"
+                                : "text-slate-400"
+                            }`}
+                            title={tx.provider_status || "Belum ada status provider"}
+                          >
+                            {tx.provider_status || "Belum ada status provider"}
+                          </span>
+                        </div>
+                      </div>
                     </td>
+
 
                     {/* Response Provider Column */}
                     <td className="py-3.5 px-4">
