@@ -28,6 +28,32 @@ import Pagination from "@/components/Pagination";
 const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 const PUBLIC_CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || "http://localhost:3000";
 
+// Parse berulang: string yang isinya JSON (double-encoded) ikut di-parse
+const parseDeep = (value: any): any => {
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (text.startsWith("{") || text.startsWith("[") || text.startsWith('"')) {
+      try {
+        return parseDeep(JSON.parse(text));
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(parseDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, parseDeep(v)]));
+  }
+  return value;
+};
+
+const prettyJSON = (value: any): string => {
+  if (value === null || value === undefined || value === "") return "-";
+  const parsed = parseDeep(value);
+  return typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2);
+};
+
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -179,8 +205,10 @@ export default function TransactionsPage() {
     };
     if (!tx?.provider_callback_data) return { request: fallbackRequest, response: null };
     try {
-      const parsed = JSON.parse(tx.provider_callback_data);
-      if (parsed && (parsed.request || parsed.response)) return { request: parsed.request || fallbackRequest, response: parsed.response || null };
+      const parsed = parseDeep(tx.provider_callback_data);
+      if (parsed && typeof parsed === "object" && (parsed.request || parsed.response)) {
+        return { request: parsed.request || fallbackRequest, response: parsed.response || null };
+      }
       return { request: fallbackRequest, response: parsed };
     } catch {
       return { request: fallbackRequest, response: tx.provider_callback_data };
@@ -190,7 +218,7 @@ export default function TransactionsPage() {
   const formatJSONResponse = (tx: any) => {
     if (!tx) return "{}";
     const exchange = providerExchange(tx);
-    if (exchange.response) return typeof exchange.response === "string" ? exchange.response : JSON.stringify(exchange.response, null, 2);
+    if (exchange.response) return prettyJSON(exchange.response);
     // Fallback constructed provider metadata
     const fallback = {
       provider: getProviderName(tx),
@@ -206,16 +234,14 @@ export default function TransactionsPage() {
     return JSON.stringify(fallback, null, 2);
   };
 
-  const formatJSONRequest = (tx: any) => JSON.stringify(providerExchange(tx).request, null, 2);
+  const formatJSONRequest = (tx: any) => prettyJSON(providerExchange(tx).request);
 
-  const copyResponseJSON = (tx: any) => {
-    const formatted = formatJSONResponse(tx);
-    navigator.clipboard.writeText(formatted);
-    setResponseModal((prev) => ({ ...prev, copied: true }));
-    setTimeout(() => {
-      setResponseModal((prev) => ({ ...prev, copied: false }));
-    }, 2000);
-  };
+  const [copiedKey, setCopiedKey] = useState<"" | "request" | "response">("");
+const copyBlock = (key: "request" | "response", text: string) => {
+  navigator.clipboard.writeText(text);
+  setCopiedKey(key);
+  setTimeout(() => setCopiedKey(""), 2000);
+};
 
   const handleCheckStatus = async (tx: any) => {
     if (!tx?.id) return;
@@ -662,10 +688,10 @@ export default function TransactionsPage() {
                   Request Provider (credential/signature disensor):
                 </span>
                 <button
-                  onClick={() => copyResponseJSON(responseModal.tx)}
+                  onClick={() => copyBlock("request", formatJSONRequest(responseModal.tx))}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition-colors shadow-sm"
                 >
-                  {responseModal.copied ? (
+                  {copiedKey === "request" ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
                       <span className="text-emerald-400 font-bold">Tersalin!</span>
@@ -673,25 +699,43 @@ export default function TransactionsPage() {
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Salin JSON</span>
+                      <span>Salin Request</span>
                     </>
                   )}
                 </button>
               </div>
 
               <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                <pre className="p-4 text-xs font-mono text-sky-300 overflow-x-auto max-h-52 leading-relaxed selection:bg-indigo-500 selection:text-white">
+                <pre className="p-4 text-xs font-mono text-sky-300 whitespace-pre-wrap break-all overflow-auto max-h-72 leading-relaxed selection:bg-indigo-500 selection:text-white">
                   {formatJSONRequest(responseModal.tx)}
                 </pre>
               </div>
+
               <div className="flex items-center justify-between pt-2">
                 <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                   <Code2 className="w-4 h-4 text-emerald-400" />
                   Response Provider (Callback / API):
                 </span>
+                <button
+                  onClick={() => copyBlock("response", formatJSONResponse(responseModal.tx))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition-colors shadow-sm"
+                >
+                  {copiedKey === "response" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400 font-bold">Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Salin Response</span>
+                    </>
+                  )}
+                </button>
               </div>
+
               <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                <pre className="p-4 text-xs font-mono text-emerald-400 overflow-x-auto max-h-52 leading-relaxed selection:bg-indigo-500 selection:text-white">
+                <pre className="p-4 text-xs font-mono text-emerald-400 whitespace-pre-wrap break-all overflow-auto max-h-72 leading-relaxed selection:bg-indigo-500 selection:text-white">
                   {formatJSONResponse(responseModal.tx)}
                 </pre>
               </div>
