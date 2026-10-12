@@ -63,6 +63,15 @@ type DigiflazzSettings = {
   secret_configured?: boolean;
 };
 
+type ExcellentStoreSettings = {
+  configured: boolean;
+  name: string;
+  base_url: string;
+  is_active: boolean;
+  api_key_configured: boolean;
+  secret_configured: boolean;
+};
+
 type KiosgamerStatus = {
   configured: boolean;
   status: string;
@@ -75,7 +84,18 @@ type KiosgamerStatus = {
 };
 
 export default function ProvidersPage() {
-  const { data: providers, mutate } = useSWR<ProviderItem[]>("/admin/providers", fetcher);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+
+  const { data: providers, mutate } = useSWR<ProviderItem[]>(
+    "/admin/providers",
+    fetcher,
+    {
+      refreshInterval: autoRefresh ? 10000 : 0,
+      onSuccess: () => setLastRefreshedAt(new Date()),
+    }
+  );
   const { data: refData, mutate: mutateReference } = useSWR<Reference>(
     "/admin/settings/transaction-reference",
     fetcher
@@ -104,6 +124,10 @@ export default function ProvidersPage() {
   const [digiUsername, setDigiUsername] = useState("");
   const [digiSecret, setDigiSecret] = useState("");
 
+  // ExcellentStore State
+  const [excellent, setExcellent] = useState<ExcellentStoreSettings | null>(null);
+  const [excellentSecret, setExcellentSecret] = useState("");
+
   // Kiosgamer States
   const [kiosStatus, setKiosStatus] = useState<KiosgamerStatus | null>(null);
   const [kiosSessionKey, setKiosSessionKey] = useState("");
@@ -115,6 +139,25 @@ export default function ProvidersPage() {
 
   // Per-card balance loading indicator
   const [checkingBalanceId, setCheckingBalanceId] = useState<number | null>(null);
+
+  const refreshAllBalances = async () => {
+    setIsRefreshingAll(true);
+    setNotice("");
+    try {
+      const res = await api.post("/admin/providers/refresh-balances");
+      if (res.data?.data) {
+        await mutate(res.data.data, false);
+      } else {
+        await mutate();
+      }
+      setLastRefreshedAt(new Date());
+      setNotice("Saldo seluruh provider berhasil diperbarui secara realtime!");
+    } catch (err: any) {
+      setNotice(err.response?.data?.message || "Gagal memperbarui saldo provider.");
+    } finally {
+      setIsRefreshingAll(false);
+    }
+  };
 
   useEffect(() => {
     if (refData) setReference(refData);
@@ -187,6 +230,7 @@ export default function ProvidersPage() {
     setNotice("");
     setAPIKey("");
     setDigiSecret("");
+	setExcellentSecret("");
     setName(item.name);
     setBaseURL(item.base_url);
     setIsActive(item.is_active);
@@ -211,6 +255,17 @@ export default function ProvidersPage() {
         setName(data.name);
         setBaseURL(data.base_url);
         setDigiUsername(data.username || "");
+        setIsActive(data.is_active);
+      } catch {
+        // fallback
+      }
+    } else if (code === "EXCELLENTSTORE") {
+      try {
+        const res = await api.get("/admin/providers/excellentstore");
+        const data: ExcellentStoreSettings = res.data.data;
+        setExcellent(data);
+        setName(data.name);
+        setBaseURL(data.base_url);
         setIsActive(data.is_active);
       } catch {
         // fallback
@@ -269,6 +324,30 @@ export default function ProvidersPage() {
       setNotice("Konfigurasi Digiflazz tersimpan.");
     } catch (error: any) {
       setNotice(error.response?.data?.message || "Gagal menyimpan Digiflazz.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveExcellentStore = async () => {
+    setSaving(true);
+    setNotice("");
+    try {
+      await api.put("/admin/providers/excellentstore", {
+        name,
+        base_url: baseURL,
+        api_key: apiKey,
+        secret: excellentSecret,
+        is_active: isActive,
+      });
+      setAPIKey("");
+      setExcellentSecret("");
+      const fresh = await api.get("/admin/providers/excellentstore");
+      setExcellent(fresh.data.data);
+      await mutate();
+      setNotice("Konfigurasi ExcellentStore tersimpan.");
+    } catch (error: any) {
+      setNotice(error.response?.data?.message || "Gagal menyimpan ExcellentStore.");
     } finally {
       setSaving(false);
     }
@@ -434,6 +513,57 @@ export default function ProvidersPage() {
           Simpan Format Global
         </button>
       </section>
+
+      {/* Realtime Saldo Control Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="relative flex h-3.5 w-3.5 items-center justify-center">
+            {autoRefresh && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${autoRefresh ? "bg-emerald-500 shadow-sm shadow-emerald-500/50" : "bg-slate-600"}`}></span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-white">Monitoring Saldo Provider Real-Time</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                autoRefresh ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}>
+                {autoRefresh ? "● Realtime Aktif (Auto-Sync 10s)" : "Manual"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {lastRefreshedAt
+                ? `Terakhir diperbarui: ${lastRefreshedAt.toLocaleTimeString("id-ID")}`
+                : "Saldo diperbarui otomatis secara berkala"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+              autoRefresh
+                ? "bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                : "bg-emerald-950/40 border-emerald-600/40 text-emerald-300 hover:bg-emerald-900/40"
+            }`}
+          >
+            {autoRefresh ? "Jeda Auto-Sync" : "Nyalakan Auto-Sync"}
+          </button>
+
+          <button
+            type="button"
+            onClick={refreshAllBalances}
+            disabled={isRefreshingAll}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 disabled:opacity-60 transition"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingAll ? "animate-spin" : ""}`} />
+            {isRefreshingAll ? "Mengecek Semua Saldo..." : "Refresh Semua Saldo Realtime"}
+          </button>
+        </div>
+      </div>
 
       {/* Provider Cards with Balance */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -773,6 +903,18 @@ export default function ProvidersPage() {
               </div>
             )}
 
+            {/* EXCELLENTSTORE MODAL CONTENT */}
+            {selected.code.toUpperCase() === "EXCELLENTSTORE" && (
+              <div className="space-y-4 text-xs">
+                <div><label className="block text-slate-300 font-medium mb-1">Nama Provider</label><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100" /></div>
+                <div><label className="block text-slate-300 font-medium mb-1">Base URL ExcellentStore</label><input type="url" value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://.../api/v1" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" /></div>
+                <div><label className="block text-slate-300 font-medium mb-1">API Key {excellent?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}</label><div className="relative"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" /><input type="password" value={apiKey} onChange={(e) => setAPIKey(e.target.value)} placeholder={excellent?.api_key_configured ? "Kosongkan untuk mempertahankan API key" : "Masukkan API key ExcellentStore"} className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" /></div></div>
+                <div><label className="block text-slate-300 font-medium mb-1">Webhook Secret {excellent?.secret_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}</label><div className="relative"><ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" /><input type="password" value={excellentSecret} onChange={(e) => setExcellentSecret(e.target.value)} placeholder={excellent?.secret_configured ? "Kosongkan untuk mempertahankan secret" : "Masukkan webhook secret"} className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" /></div></div>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded text-indigo-600" /><span>Aktifkan ExcellentStore</span></label>
+                <div className="flex justify-end pt-2"><button onClick={saveExcellentStore} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition"><Save className="h-4 w-4" /> {saving ? "Menyimpan..." : "Simpan ExcellentStore"}</button></div>
+              </div>
+            )}
+
             {/* FFZSTORE MODAL CONTENT */}
             {selected.code.toUpperCase() === "FFZSTORE" && (
               <div className="space-y-4 text-xs">
@@ -842,7 +984,8 @@ export default function ProvidersPage() {
             {/* OTHER / CUSTOM PROVIDER FALLBACK */}
             {selected.code.toUpperCase() !== "DIGIFLAZZ" &&
               selected.code.toUpperCase() !== "KIOSGAMER" &&
-              selected.code.toUpperCase() !== "FFZSTORE" && (
+              selected.code.toUpperCase() !== "FFZSTORE" &&
+              selected.code.toUpperCase() !== "EXCELLENTSTORE" && (
                 <div className="space-y-4 text-xs">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>

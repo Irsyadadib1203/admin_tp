@@ -78,6 +78,14 @@ export default function NominalsPage() {
     isLoading: false,
   });
 
+  // State untuk edit SKU & harga modal per provider (dinamis)
+  const [providerProductEdits, setProviderProductEdits] = useState<
+    Record<number, { product_code: string; cost_price: string }>
+  >({});
+  const [isSavingPP, setIsSavingPP] = useState(false);
+  const [ppSaveResult, setPpSaveResult] = useState<"success" | "error" | null>(null);
+
+
   const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
   const { data: providers } = useSWR("/admin/providers", fetcher);
   const {
@@ -172,8 +180,22 @@ export default function NominalsPage() {
       seller_product_code: item.seller_product_code || item.provider_product_code,
       is_active: item.is_active,
     });
+
+    // Inisialisasi edits dari provider_products yang ada (data existing dari DB)
+    const edits: Record<number, { product_code: string; cost_price: string }> = {};
+    if (item.provider_products && Array.isArray(item.provider_products)) {
+      item.provider_products.forEach((pp: any) => {
+        edits[pp.provider_id] = {
+          product_code: pp.product_code || "",
+          cost_price: pp.cost_price != null ? String(pp.cost_price) : "",
+        };
+      });
+    }
+    setProviderProductEdits(edits);
+    setPpSaveResult(null);
     setIsModalOpen(true);
   };
+
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,6 +242,29 @@ export default function NominalsPage() {
     } catch (err: any) {
       setConfirmDelete((prev) => ({ ...prev, isLoading: false }));
       alert("Gagal menghapus: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Simpan SKU & harga modal per provider ke endpoint terpisah
+  const saveProviderProducts = async () => {
+    if (!editingNominal) return;
+    setIsSavingPP(true);
+    setPpSaveResult(null);
+    try {
+      const entries = Object.entries(providerProductEdits).map(([providerIdStr, val]) => ({
+        provider_id: parseInt(providerIdStr),
+        product_code: val.product_code.trim(),
+        cost_price: val.cost_price !== "" ? parseFloat(val.cost_price) : null,
+      }));
+      await api.put(`/admin/nominals/${editingNominal.id}/provider-products`, entries);
+      setPpSaveResult("success");
+      mutate();
+      setTimeout(() => setPpSaveResult(null), 3000);
+    } catch (err: any) {
+      setPpSaveResult("error");
+      alert("Gagal menyimpan: " + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSavingPP(false);
     }
   };
 
@@ -301,23 +346,30 @@ export default function NominalsPage() {
     );
   };
 
+  // Badge warna berputar berdasarkan hash ID provider agar setiap provider punya warna unik
+  const PROVIDER_BADGE_COLORS = [
+    "bg-sky-500/10 border-sky-500/30 text-sky-400",
+    "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+    "bg-violet-500/10 border-violet-500/30 text-violet-400",
+    "bg-amber-500/10 border-amber-500/30 text-amber-400",
+    "bg-rose-500/10 border-rose-500/30 text-rose-400",
+    "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+  ];
+  const PROVIDER_BADGE_ICONS = [Zap, Flame, Layers, Zap, Flame, Layers];
+
   const getProviderBadge = (provider: any, providerId?: number) => {
-    const code = provider?.code?.toUpperCase() || (providerId === 2 ? "KIOSGAMER" : "DIGIFLAZZ");
-    if (code === "KIOSGAMER") {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-          <Flame className="w-3 h-3" />
-          Kiosgamer
-        </span>
-      );
-    }
+    const name = provider?.name || provider?.code || `Provider #${providerId ?? "?"}`;
+    const idx = ((provider?.id ?? providerId ?? 0) - 1 + PROVIDER_BADGE_COLORS.length) % PROVIDER_BADGE_COLORS.length;
+    const colorClass = PROVIDER_BADGE_COLORS[idx];
+    const Icon = PROVIDER_BADGE_ICONS[idx];
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 border border-sky-500/30 text-sky-400">
-        <Zap className="w-3 h-3" />
-        Digiflazz
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${colorClass}`}>
+        <Icon className="w-3 h-3" />
+        {name}
       </span>
     );
   };
+
 
   return (
     <div className="space-y-6">
@@ -470,19 +522,25 @@ export default function NominalsPage() {
                       </td>
                       <td className="py-3.5 px-3 font-mono text-slate-300">
                         <div className="space-y-0.5">
-                          <span className="text-slate-400 block text-[10px]">
-                            Prov: {item.provider_product_code}
-                          </span>
-                          {item.kiosgamer_product_code && (
-                            <span className="text-emerald-400 block text-[10px]">
-                              Kiosgamer: {item.kiosgamer_product_code}
+                          {/* Tampilkan SKU dari provider_products (dinamis) */}
+                          {item.provider_products && item.provider_products.length > 0 ? (
+                            item.provider_products.map((pp: any) => (
+                              <span key={pp.id} className="block text-[10px] text-slate-400">
+                                <span className="text-slate-500">{pp.provider?.name || `#${pp.provider_id}`}:</span>{" "}
+                                <span className="text-slate-200">{pp.product_code || "—"}</span>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 block text-[10px]">
+                              Prov: {item.provider_product_code || "—"}
                             </span>
                           )}
                           <span className="text-amber-400 font-medium text-[11px] block">
-                            H2H: {item.seller_product_code || item.provider_product_code}
+                            H2H: {item.seller_product_code || item.provider_product_code || "—"}
                           </span>
                         </div>
                       </td>
+
                       <td className="py-3.5 px-3 font-medium text-slate-400">
                         {formatRupiah(item.base_price)}
                       </td>
@@ -657,63 +715,159 @@ export default function NominalsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      SKU Provider Utama *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: ML86 / kode produk provider"
-                      value={formData.provider_product_code}
-                      onChange={(e) =>
-                        setFormData({ ...formData, provider_product_code: e.target.value })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-                    />
+                {/* SKU Provider — Dynamic per provider */}
+                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">SKU & Harga Modal per Provider</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {editingNominal
+                          ? "Edit SKU dan harga modal lalu klik \"Simpan SKU & Harga\" untuk menyimpan."
+                          : "SKU Provider Utama wajib diisi. SKU lain opsional (isi jika provider tersebut digunakan untuk nominal ini)."}
+                      </p>
+                    </div>
+                    {editingNominal && (
+                      <button
+                        type="button"
+                        onClick={saveProviderProducts}
+                        disabled={isSavingPP}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
+                          ppSaveResult === "success"
+                            ? "bg-emerald-600 text-white"
+                            : ppSaveResult === "error"
+                            ? "bg-rose-600 text-white"
+                            : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                        } disabled:opacity-50`}
+                      >
+                        {isSavingPP ? (
+                          "Menyimpan..."
+                        ) : ppSaveResult === "success" ? (
+                          <><Check className="w-3.5 h-3.5" /> Tersimpan!</>
+                        ) : (
+                          "Simpan SKU & Harga"
+                        )}
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-amber-300 font-medium mb-1 flex items-center justify-between">
-                      <span>SKU Kiosgamer {providers?.find((p: any) => p.id === formData.provider_id)?.code?.toUpperCase() === "KIOSGAMER" ? "*" : ""}</span>
-                      <span className="text-[10px] text-slate-400">FF / CODM</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: 1, 2, 14, 103"
-                      value={formData.kiosgamer_product_code}
-                      onChange={(e) =>
-                        setFormData({ ...formData, kiosgamer_product_code: e.target.value })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-amber-300 focus:outline-none focus:border-amber-500 font-mono"
-                    />
+
+                  {/* Loop per provider */}
+                  <div className="space-y-2">
+                    {(providers || []).map((prov: any, idx: number) => {
+                      const isSelected = formData.provider_id === prov.id;
+                      const ppEdit = providerProductEdits[prov.id] || { product_code: "", cost_price: "" };
+                      const badgeColors = [
+                        "border-sky-500/40 bg-sky-950/30",
+                        "border-emerald-500/40 bg-emerald-950/30",
+                        "border-violet-500/40 bg-violet-950/30",
+                        "border-amber-500/40 bg-amber-950/30",
+                        "border-rose-500/40 bg-rose-950/30",
+                        "border-cyan-500/40 bg-cyan-950/30",
+                      ];
+                      const labelColors = ["text-sky-300","text-emerald-300","text-violet-300","text-amber-300","text-rose-300","text-cyan-300"];
+                      const colorIdx = (prov.id - 1 + badgeColors.length) % badgeColors.length;
+                      return (
+                        <div
+                          key={prov.id}
+                          className={`rounded-xl border p-3 ${badgeColors[colorIdx]} ${isSelected ? "ring-1 ring-indigo-500/50" : ""}`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-xs font-bold ${labelColors[colorIdx]}`}>
+                              {prov.name}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">({prov.code})</span>
+                            {isSelected && (
+                              <span className="text-[10px] bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">
+                                Provider Aktif
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                SKU / Kode Produk {isSelected ? "*" : ""}
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={`Kode ${prov.name}`}
+                                value={
+                                  // Untuk provider aktif (form utama), sync dua arah dengan formData
+                                  isSelected && !editingNominal
+                                    ? formData.provider_product_code
+                                    : editingNominal
+                                    ? ppEdit.product_code
+                                    : formData.provider_product_code
+                                }
+                                onChange={(e) => {
+                                  if (isSelected && !editingNominal) {
+                                    // Saat create: sync ke formData.provider_product_code
+                                    setFormData({ ...formData, provider_product_code: e.target.value });
+                                  } else {
+                                    // Saat edit: update providerProductEdits
+                                    setProviderProductEdits((prev) => ({
+                                      ...prev,
+                                      [prov.id]: { ...prev[prov.id] || { cost_price: "" }, product_code: e.target.value },
+                                    }));
+                                    // Juga sync ke formData jika ini provider aktif (untuk backward compat)
+                                    if (isSelected) {
+                                      setFormData({ ...formData, provider_product_code: e.target.value });
+                                    }
+                                  }
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                Harga Modal (Rp) {editingNominal ? "" : "— isi setelah simpan nominal"}
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="Harga beli dari provider"
+                                value={editingNominal ? ppEdit.cost_price : ""}
+                                disabled={!editingNominal}
+                                onChange={(e) => {
+                                  if (!editingNominal) return;
+                                  setProviderProductEdits((prev) => ({
+                                    ...prev,
+                                    [prov.id]: { ...prev[prov.id] || { product_code: "" }, cost_price: e.target.value },
+                                  }));
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                              />
+                            </div>
+                          </div>
+                          {/* SKU Kiosgamer legacy sync — jika code = KIOSGAMER */}
+                          {prov.code?.toUpperCase() === "KIOSGAMER" && (
+                            <p className="text-[10px] text-amber-400/70 mt-1.5">
+                              💡 SKU Kiosgamer biasanya berupa angka item_id (mis: 1, 2, 14, 103). Khusus game Garena (FF & CODM).
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      SKU Seller (H2H)
+
+                  {/* SKU H2H (seller_product_code) — selalu tampil */}
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3">
+                    <label className="block text-amber-300 font-semibold text-xs mb-1.5">
+                      SKU Seller / H2H (seller_product_code)
                     </label>
                     <input
                       type="text"
-                      placeholder="MLBB_86"
+                      placeholder="Contoh: MLBB_86, FF_140DM"
                       value={formData.seller_product_code}
                       onChange={(e) =>
                         setFormData({ ...formData, seller_product_code: e.target.value })
                       }
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                      className="w-full bg-slate-900 border border-amber-500/30 rounded-lg py-1.5 px-2.5 text-amber-200 focus:outline-none focus:border-amber-400 font-mono text-xs"
                     />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Kode produk yang ditampilkan ke customer H2H/reseller. Jika kosong, menggunakan SKU provider utama.
+                    </p>
                   </div>
                 </div>
 
-                {editingNominal && (
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                    <div className="mb-3 flex items-center justify-between"><div><h4 className="text-sm font-semibold text-white">Harga Denom per Provider</h4><p className="text-[11px] text-slate-400">SKU dan harga modal mapping provider untuk nominal ini.</p></div></div>
-                    {(editingNominal.provider_products || []).length === 0 ? (
-                      <p className="text-xs text-amber-300">Belum ada mapping provider tambahan. Mapping provider utama akan dibuat dari SKU di atas saat nominal disimpan.</p>
-                    ) : (
-                      <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-slate-800 text-slate-400"><tr><th className="pb-2 pr-3">Provider</th><th className="pb-2 pr-3">SKU</th><th className="pb-2">Harga Modal</th></tr></thead><tbody className="divide-y divide-slate-800">{editingNominal.provider_products.map((mapping: any) => <tr key={mapping.id}><td className="py-2 pr-3 font-semibold text-indigo-300">{mapping.provider?.name || `Provider #${mapping.provider_id}`}</td><td className="py-2 pr-3 font-mono text-slate-200">{mapping.product_code}</td><td className="py-2 text-emerald-300">{mapping.cost_price != null ? formatRupiah(mapping.cost_price) : "-"}</td></tr>)}</tbody></table></div>
-                    )}
-                  </div>
-                )}
+
 
                 {/* Pricing Calculation Box */}
                 <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">

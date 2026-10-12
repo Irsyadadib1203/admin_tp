@@ -22,6 +22,7 @@ import {
   BookOpen,
   X,
   ShieldAlert,
+  CircleDollarSign,
 } from "lucide-react";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -37,6 +38,7 @@ interface NavItem {
 
 const allNavItems: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "dashboard" },
+  { name: "Keuangan", href: "/keuangan", icon: CircleDollarSign, resource: "finance" },
   { name: "Transactions", href: "/transactions", icon: Receipt, resource: "transactions" },
   { name: "Games Catalog", href: "/games", icon: Gamepad2, resource: "games" },
   { name: "Nominals & Prices", href: "/nominals", icon: Tags, resource: "nominals" },
@@ -80,9 +82,16 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     if (isSuperAdmin) {
       return true;
     }
-    // If permission data is still loading, allow dashboard as safe fallback
+    // If permission data is still loading, allow dashboard and finance as safe fallback
     if (!permData?.permissions) {
-      return item.resource === "dashboard";
+      return item.resource === "dashboard" || item.resource === "finance";
+    }
+    if (item.resource === "finance") {
+      return (
+        permData.permissions.includes("finance") ||
+        permData.permissions.includes("dashboard") ||
+        permData.permissions.includes("transactions")
+      );
     }
     return permData.permissions.includes(item.resource);
   });
