@@ -14,6 +14,19 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"credentials" | "2fa">("credentials");
+  const [tempToken, setTempToken] = useState("");
+  const [code, setCode] = useState("");
+
+  const finishLogin = (token: string, user: any) => {
+    if (!["admin", "superadmin", "operator"].includes(user.role)) {
+      setError("Akun Anda tidak memiliki izin akses Admin Panel.");
+      return;
+    }
+    setAuthSession(token, user);
+    // Paksa admin yang belum punya 2FA untuk mengaktifkannya dulu
+    router.push(user.totp_enabled ? "/" : "/security/2fa");
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,21 +35,15 @@ export default function LoginPage() {
 
     try {
       const res = await api.post("/auth/login", { email, password });
-      const { user, token } = res.data.data;
+      const data = res.data.data;
 
-      // Check admin permissions
-      if (
-        user.role !== "admin" &&
-        user.role !== "superadmin" &&
-        user.role !== "operator"
-      ) {
-        setError("Akun Anda tidak memiliki izin akses Admin Panel.");
-        setLoading(false);
+      if (data.requires_2fa) {
+        setTempToken(data.temp_token);
+        setStep("2fa");
         return;
       }
 
-      setAuthSession(token, user);
-      router.push("/");
+      finishLogin(data.token, data.user);
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
@@ -46,6 +53,25 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+  const handleVerify2FA = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  try {
+    const res = await api.post("/auth/2fa/verify", { temp_token: tempToken, code });
+    finishLogin(res.data.data.token, res.data.data.user);
+  } catch (err: any) {
+    const msg = err.response?.data?.message || "Kode verifikasi salah.";
+    setError(msg);
+    setCode("");
+    if (msg.includes("kedaluwarsa") || msg.includes("tidak valid")) {
+      setStep("credentials");
+      setTempToken("");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="h-screen w-full flex items-center justify-center bg-slate-950 px-4 overflow-hidden">
@@ -74,7 +100,7 @@ export default function LoginPage() {
             <span>{error}</span>
           </div>
         )}
-
+{step === "credentials" ? (
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label
@@ -143,6 +169,39 @@ export default function LoginPage() {
             {loading ? "Memverifikasi..." : "Masuk ke Panel Admin"}
           </button>
         </form>
+        ) : (
+        <form onSubmit={handleVerify2FA} className="space-y-4">
+          <p className="text-xs text-slate-400 text-center">
+            Masukkan kode 6 digit dari aplikasi Google Authenticator.
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="123456"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 text-center text-xl tracking-[0.5em] text-slate-100 placeholder-slate-700 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+          />
+          <button
+            type="submit"
+            disabled={loading || code.length !== 6}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-sm shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
+          >
+            {loading ? "Memverifikasi..." : "Verifikasi"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setStep("credentials"); setCode(""); setError(null); }}
+            className="w-full text-xs text-slate-500 hover:text-slate-300"
+          >
+            Kembali ke login
+          </button>
+        </form>
+      )}
 
         
       </div>
