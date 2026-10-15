@@ -26,6 +26,8 @@ import Pagination from "@/components/Pagination";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
 const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
+type PPEdit = { product_code: string; cost_price: string; auto_sync_price: boolean };
+const EMPTY_PP: PPEdit = { product_code: "", cost_price: "", auto_sync_price: true };
 
 export default function NominalsPage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
@@ -79,9 +81,7 @@ export default function NominalsPage() {
   });
 
   // State untuk edit SKU & harga modal per provider (dinamis)
-  const [providerProductEdits, setProviderProductEdits] = useState<
-    Record<number, { product_code: string; cost_price: string }>
-  >({});
+  const [providerProductEdits, setProviderProductEdits] = useState<Record<number, PPEdit>>({});
   const [isSavingPP, setIsSavingPP] = useState(false);
   const [ppSaveResult, setPpSaveResult] = useState<"success" | "error" | null>(null);
 
@@ -182,12 +182,13 @@ export default function NominalsPage() {
     });
 
     // Inisialisasi edits dari provider_products yang ada (data existing dari DB)
-    const edits: Record<number, { product_code: string; cost_price: string }> = {};
+    const edits: Record<number, PPEdit> = {};
     if (item.provider_products && Array.isArray(item.provider_products)) {
       item.provider_products.forEach((pp: any) => {
         edits[pp.provider_id] = {
           product_code: pp.product_code || "",
           cost_price: pp.cost_price != null ? String(pp.cost_price) : "",
+          auto_sync_price: pp.auto_sync_price !== false,
         };
       });
     }
@@ -255,7 +256,8 @@ export default function NominalsPage() {
         provider_id: parseInt(providerIdStr),
         product_code: val.product_code.trim(),
         cost_price: val.cost_price !== "" ? parseFloat(val.cost_price) : null,
-      }));
+        auto_sync_price: val.auto_sync_price,
+        }));
       await api.put(`/admin/nominals/${editingNominal.id}/provider-products`, entries);
 
       // Ambil data terbaru dari server (mutate mengembalikan hasil fetch ulang)
@@ -789,7 +791,7 @@ export default function NominalsPage() {
                   <div className="space-y-2">
                     {(providers || []).map((prov: any, idx: number) => {
                       const isSelected = formData.provider_id === prov.id;
-                      const ppEdit = providerProductEdits[prov.id] || { product_code: "", cost_price: "" };
+                      const ppEdit = providerProductEdits[prov.id] || EMPTY_PP;
                       const badgeColors = [
                         "border-sky-500/40 bg-sky-950/30",
                         "border-emerald-500/40 bg-emerald-950/30",
@@ -840,7 +842,7 @@ export default function NominalsPage() {
                                     // Saat edit: update providerProductEdits
                                     setProviderProductEdits((prev) => ({
                                       ...prev,
-                                      [prov.id]: { ...prev[prov.id] || { cost_price: "" }, product_code: e.target.value },
+                                      [prov.id]: { ...(prev[prov.id] || EMPTY_PP), product_code: e.target.value },
                                     }));
                                     // Juga sync ke formData jika ini provider aktif (untuk backward compat)
                                     if (isSelected) {
@@ -864,13 +866,48 @@ export default function NominalsPage() {
                                   if (!editingNominal) return;
                                   setProviderProductEdits((prev) => ({
                                     ...prev,
-                                    [prov.id]: { ...prev[prov.id] || { product_code: "" }, cost_price: e.target.value },
+                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), cost_price: e.target.value },
                                   }));
                                 }}
                                 className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                               />
                             </div>
                           </div>
+                          {editingNominal && (
+                            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/60">
+                              <div>
+                                <span className="text-[11px] text-slate-300 font-medium">Auto-sync harga modal</span>
+                                <p className="text-[10px] text-slate-500">
+                                  {ppEdit.auto_sync_price
+                                    ? "Harga modal ikut diperbarui otomatis dari provider."
+                                    : "Harga modal dikunci, tidak diubah sync otomatis."}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={ppEdit.auto_sync_price}
+                                onClick={() =>
+                                  setProviderProductEdits((prev) => ({
+                                    ...prev,
+                                    [prov.id]: {
+                                      ...(prev[prov.id] || EMPTY_PP),
+                                      auto_sync_price: !(prev[prov.id] || EMPTY_PP).auto_sync_price,
+                                    },
+                                  }))
+                                }
+                                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                  ppEdit.auto_sync_price ? "bg-emerald-500" : "bg-slate-700"
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                    ppEdit.auto_sync_price ? "translate-x-4" : ""
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          )}
                           {/* SKU Kiosgamer legacy sync — jika code = KIOSGAMER */}
                           {prov.code?.toUpperCase() === "KIOSGAMER" && (
                             <p className="text-[10px] text-amber-400/70 mt-1.5">
