@@ -257,8 +257,43 @@ export default function NominalsPage() {
         cost_price: val.cost_price !== "" ? parseFloat(val.cost_price) : null,
       }));
       await api.put(`/admin/nominals/${editingNominal.id}/provider-products`, entries);
+
+      // Ambil data terbaru dari server (mutate mengembalikan hasil fetch ulang)
+      const fresh = await mutate();
+      const freshItem = Array.isArray(fresh?.data)
+        ? fresh.data.find((n: any) => n.id === editingNominal.id)
+        : null;
+
+      // Tentukan base_price terbaru: prioritas dari server, fallback dari cost_price provider aktif
+      let newBase: number | null = null;
+      if (freshItem && freshItem.base_price != null) {
+        newBase = Number(freshItem.base_price);
+      } else {
+        const activeCost = providerProductEdits[formData.provider_id]?.cost_price;
+        if (activeCost !== undefined && activeCost !== "") {
+          newBase = parseFloat(activeCost);
+        }
+      }
+
+      if (newBase !== null && !Number.isNaN(newBase)) {
+        // Sinkronkan base_price & harga jual tanpa menimpa field form lain (nama, dll.)
+        setFormData((prev) => {
+          const margin = newBase! * (prev.margin_percent / 100);
+          return {
+            ...prev,
+            base_price: newBase!,
+            price_public: Math.round(newBase! + margin),
+            price_member: Math.round(newBase! + margin * 0.85),
+            price_vip: Math.round(newBase! + margin * 0.7),
+            price_reseller: Math.round(newBase! + margin * 0.5),
+          };
+        });
+      }
+
+      // Sinkronkan juga editingNominal agar data provider_products di modal tidak basi
+      if (freshItem) setEditingNominal(freshItem);
+
       setPpSaveResult("success");
-      mutate();
       setTimeout(() => setPpSaveResult(null), 3000);
     } catch (err: any) {
       setPpSaveResult("error");
