@@ -877,7 +877,12 @@ export default function NominalsPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-400 mb-1">Harga Modal Dasar (Rp)</label>
+                     <label className="block text-slate-400 mb-1">Harga Modal Dasar (Rp)</label>
+                    {editingNominal ? (
+                      <div className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 font-bold text-slate-300 cursor-not-allowed">
+                        {formatRupiah(formData.base_price)}
+                      </div>
+                    ) : (
                       <input
                         type="number"
                         value={formData.base_price}
@@ -889,6 +894,12 @@ export default function NominalsPage() {
                         }
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-3 text-slate-100 focus:outline-none font-medium"
                       />
+                    )}
+                    {editingNominal && (
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Otomatis mengikuti harga modal provider saat pemindahan provider.
+                      </p>
+                    )}
                     </div>
                     <div>
                       <label className="block text-slate-400 mb-1">Markup Margin (%)</label>
