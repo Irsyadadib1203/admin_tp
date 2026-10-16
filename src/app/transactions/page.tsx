@@ -56,7 +56,6 @@ const prettyJSON = (value: any): string => {
 
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
@@ -120,7 +119,7 @@ export default function TransactionsPage() {
   const [bulkModal, setBulkModal] = useState<{ isOpen: boolean; action: "retry" | "success" | "fail" | null; notes: string; isLoading: boolean }>({ isOpen: false, action: null, notes: "", isLoading: false });
   const [bulkResult, setBulkResult] = useState<any | null>(null);
 
-  useEffect(() => { setSelectedIds([]); }, [page, limit, statusFilter, search]);
+  useEffect(() => { setSelectedIds([]); }, [page, limit, providerStatusFilter, search, startDate, endDate]);
 
   
   const queryParams = new URLSearchParams({
@@ -209,13 +208,13 @@ export default function TransactionsPage() {
     return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
   };
 
-  const getProviderName = (tx: any) => {
-    return (
-      tx?.provider?.name ||
-      tx?.nominal?.provider?.name ||
-      (tx?.provider_id === 2 ? "Kiosgamer" : tx?.provider_id === 3 ? "FFZStore" : "Digiflazz")
-    );
-  };
+  const { data: providers } = useSWR("/admin/providers", (u: string) => api.get(u).then((r) => r.data.data));
+
+const getProviderName = (tx: any) =>
+  tx?.provider?.name ||
+  providers?.find((p: any) => p.id === tx?.provider_id)?.name ||
+  tx?.nominal?.provider?.name ||
+  "-";
 
   const providerExchange = (tx: any) => {
     const fallbackRequest = {
@@ -626,7 +625,7 @@ const copyBlock = (key: "request" | "response", text: string) => {
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === tx.id ? "animate-spin" : ""}`} />
                         </button>
-                        {tx.status !== "success" && (
+                        {!["success", "refunded"].includes(tx.status) && (
                           <>
                             {/* Tombol 2: Proses Ulang (Kirim Order Baru) */}
                             {canRetryTransaction(tx.status) && (
@@ -978,7 +977,7 @@ const copyBlock = (key: "request" | "response", text: string) => {
                 Lihat Response JSON
               </button>
 
-              {selectedTx.status !== "success" && (
+              {!["success", "refunded"].includes(selectedTx.status) && (
                 <>
                   {canRetryTransaction(selectedTx.status) && (
                     <button
