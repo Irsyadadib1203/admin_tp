@@ -164,6 +164,11 @@ export default function NominalsPage() {
     seller_product_code: "",
     is_active: true,
   });
+  const originalProviderId: number = editingNominal
+    ? editingNominal.provider_id || editingNominal.provider?.id || 0
+    : 0;
+  const isProviderChanged =
+    !!editingNominal && originalProviderId !== 0 && formData.provider_id !== originalProviderId;
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -241,7 +246,8 @@ export default function NominalsPage() {
 
 
   const validateForm = (): string | null => {
-  const sku = (providerProductEdits[formData.provider_id]?.product_code || "").trim();
+  const activeId = editingNominal ? originalProviderId : formData.provider_id;
+  const sku = (providerProductEdits[activeId]?.product_code || "").trim();
   if (!sku) return "SKU provider aktif wajib diisi.";
   // Cegah perubahan harga modal/toggle yang SKU-nya kosong (entry akan terbuang diam-diam)
   for (const id of changedProviderIds) {
@@ -249,6 +255,19 @@ export default function NominalsPage() {
       const name = providers?.find((p: any) => p.id === id)?.name ?? `#${id}`;
       return `Provider ${name}: isi SKU dulu sebelum mengubah harga modal / auto-sync.`;
     }
+  }
+  return null;
+};
+const validateProviderSwitch = (): string | null => {
+  if (!isProviderChanged) return null;
+  const target = providerProductEdits[formData.provider_id];
+  const name = providers?.find((p: any) => p.id === formData.provider_id)?.name ?? "provider tujuan";
+  if (!(target?.product_code || "").trim()) {
+    return `Untuk pindah ke ${name}, isi SKU ${name} dulu di bagian SKU & Harga Modal.`;
+  }
+  const cost = parseFloat(target?.cost_price || "");
+  if (!(cost > 0)) {
+    return `Untuk pindah ke ${name}, isi Harga Modal ${name} (harus lebih dari 0).`;
   }
   return null;
 };
@@ -279,7 +298,7 @@ const syncProviderProducts = async () => {
   let newBase: number | null = null;
   if (freshItem?.base_price != null) newBase = Number(freshItem.base_price);
   else {
-    const c = providerProductEdits[formData.provider_id]?.cost_price;
+    const c = providerProductEdits[originalProviderId]?.cost_price;
     if (c) newBase = parseFloat(c);
   }
   if (newBase !== null && (Number.isNaN(newBase) || newBase === Number(formData.base_price))) {
@@ -295,9 +314,11 @@ const syncProviderProducts = async () => {
 };
 
 const buildNominalPayload = (data = formData) => {
-  const activeSku = (providerProductEdits[data.provider_id]?.product_code || "").trim();
+  const pid = editingNominal ? originalProviderId : data.provider_id;
+  const activeSku = (providerProductEdits[pid]?.product_code || "").trim();
   return {
     ...data,
+    provider_id: pid,
     provider_product_code: activeSku || data.provider_product_code,
     seller_product_code: data.seller_product_code || activeSku,
   };
@@ -305,7 +326,7 @@ const buildNominalPayload = (data = formData) => {
 
 const handleFormSubmit = (e: React.FormEvent) => {
   e.preventDefault();
-  const err = validateForm();
+  const err = validateForm() || validateProviderSwitch();
   if (err) return alert(err);
   if (editingNominal) setConfirmEdit({ isOpen: true, isLoading: false });
   else executeSave();
@@ -323,6 +344,25 @@ const executeSave = async () => {
           : formData;
       // 2) Data nominal
       await api.put(`/admin/nominals/${editingNominal.id}`, buildNominalPayload(data));
+
+      // 3) Pindah provider (validasi, harga, dan SKU dihitung backend)
+      if (isProviderChanged) {
+        const res = await api.post("/admin/nominals/batch-switch-provider", {
+          nominal_ids: [editingNominal.id],
+          provider_id: formData.provider_id,
+        });
+        const r = res.data?.data;
+        if (!r || (r.switched_count ?? 0) < 1) {
+          setConfirmEdit({ isOpen: false, isLoading: false });
+          alert(
+            "Perubahan lain sudah tersimpan, tetapi provider TIDAK dipindah:\n" +
+              ((r?.skipped_items || []).join("\n") || res.data?.message || "Alasan tidak diketahui.")
+          );
+          setIsModalOpen(false);
+          mutate();
+          return;
+        }
+      }
       setConfirmEdit({ isOpen: false, isLoading: false });
     } else {
       if (isCreating) return;
@@ -767,9 +807,8 @@ const saveProviderProducts = async () => {
                     <label className="block text-slate-300 font-medium mb-1">Provider Pemrosesan *</label>
                     <select
                       value={formData.provider_id}
-                      disabled={!!editingNominal}
                       onChange={(e) => setFormData({ ...formData, provider_id: parseInt(e.target.value) })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold text-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold text-indigo-300"
                     >
                       {providers?.map((p: any) => (
                         <option key={p.id} value={p.id} disabled={!p.is_active}>
@@ -777,10 +816,10 @@ const saveProviderProducts = async () => {
                         </option>
                       ))}
                     </select>
-                    {editingNominal && (
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        Untuk memindahkan provider, gunakan tombol <strong>Pindah Provider</strong> di halaman daftar
-                        (harga modal, harga jual, dan SKU ikut dihitung ulang).
+                    {isProviderChanged && (
+                      <p className="text-[10px] text-amber-400 mt-1">
+                        Provider akan dipindah saat klik <strong>Simpan Perubahan</strong>. Harga modal, harga jual, dan SKU
+                        mengikuti provider tujuan, jadi pastikan SKU dan harga modalnya sudah terisi di bagian bawah.
                       </p>
                     )}
                   </div>
@@ -897,7 +936,12 @@ const saveProviderProducts = async () => {
                             <span className="text-[10px] text-slate-500 font-mono">({prov.code})</span>
                             {isSelected && (
                               <span className="text-[10px] bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">
-                                Provider Aktif
+                                {isProviderChanged ? "Provider Tujuan" : "Provider Aktif"}
+                              </span>
+                            )}
+                            {isProviderChanged && prov.id === originalProviderId && (
+                              <span className="text-[10px] text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded-full">
+                                Saat ini
                               </span>
                             )}
                           </div>
@@ -1357,6 +1401,13 @@ const saveProviderProducts = async () => {
           <>
             Apakah Anda yakin ingin memperbarui konfigurasi harga, provider, dan SKU untuk{" "}
             <strong className="text-white font-semibold">{formData.name}</strong>?
+            {isProviderChanged && (
+              <span className="block mt-2 text-amber-300">
+                Provider akan dipindah ke{" "}
+                <strong>{providers?.find((p: any) => p.id === formData.provider_id)?.name}</strong>. Transaksi
+                berikutnya diproses lewat provider ini.
+              </span>
+            )}
           </>
         }
         confirmText="Ya, Simpan"
