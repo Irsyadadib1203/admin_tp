@@ -29,6 +29,44 @@ const paginatedFetcher = (url: string) => api.get(url).then((res) => res.data);
 type PPEdit = { product_code: string; cost_price: string; auto_sync_price: boolean };
 const EMPTY_PP: PPEdit = { product_code: "", cost_price: "", auto_sync_price: true };
 
+const calcTierPrices = (base: number, marginPct: number) => {
+  const margin = base * (marginPct / 100);
+  return {
+    price_public: Math.round(base + margin),
+    price_member: Math.round(base + margin * 0.85),
+    price_vip: Math.round(base + margin * 0.7),
+    price_reseller: Math.round(base + margin * 0.5),
+  };
+};
+
+const ppEqual = (a?: PPEdit, b?: PPEdit) => {
+  const x = a || EMPTY_PP, y = b || EMPTY_PP;
+  return (
+    x.product_code.trim() === y.product_code.trim() &&
+    x.cost_price === y.cost_price &&
+    x.auto_sync_price === y.auto_sync_price
+  );
+};
+
+const buildEdits = (item: any): Record<number, PPEdit> => {
+  const edits: Record<number, PPEdit> = {};
+  if (Array.isArray(item?.provider_products)) {
+    item.provider_products.forEach((pp: any) => {
+      edits[pp.provider_id] = {
+        product_code: pp.product_code || "",
+        cost_price: pp.cost_price != null ? String(pp.cost_price) : "",
+        auto_sync_price: pp.auto_sync_price !== false,
+      };
+    });
+  }
+  // Data lama: provider_product_code = SKU provider aktif
+  const activeId = item?.provider_id || item?.provider?.id || 0;
+  if (activeId && !edits[activeId]?.product_code && item?.provider_product_code) {
+    edits[activeId] = { ...(edits[activeId] || EMPTY_PP), product_code: item.provider_product_code };
+  }
+  return edits;
+};
+
 export default function NominalsPage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
   const [selectedProvider, setSelectedProvider] = useState<string>("");
@@ -82,6 +120,15 @@ export default function NominalsPage() {
 
   // State untuk edit SKU & harga modal per provider (dinamis)
   const [providerProductEdits, setProviderProductEdits] = useState<Record<number, PPEdit>>({});
+  const [initialPP, setInitialPP] = useState<Record<number, PPEdit>>({});
+  const [isCreating, setIsCreating] = useState(false);
+
+  const changedProviderIds = Array.from(
+    new Set([...Object.keys(providerProductEdits), ...Object.keys(initialPP)])
+  )
+    .map(Number)
+    .filter((id) => !ppEqual(providerProductEdits[id], initialPP[id]));
+  const isPPDirty = !!editingNominal && changedProviderIds.length > 0;
   const [isSavingPP, setIsSavingPP] = useState(false);
   const [ppSaveResult, setPpSaveResult] = useState<"success" | "error" | null>(null);
 
@@ -158,6 +205,9 @@ export default function NominalsPage() {
       seller_product_code: "",
       is_active: true,
     });
+    setProviderProductEdits({});
+    setInitialPP({});
+    setPpSaveResult(null);
     setIsModalOpen(true);
   };
 
@@ -182,47 +232,134 @@ export default function NominalsPage() {
     });
 
     // Inisialisasi edits dari provider_products yang ada (data existing dari DB)
-    const edits: Record<number, PPEdit> = {};
-    if (item.provider_products && Array.isArray(item.provider_products)) {
-      item.provider_products.forEach((pp: any) => {
-        edits[pp.provider_id] = {
-          product_code: pp.product_code || "",
-          cost_price: pp.cost_price != null ? String(pp.cost_price) : "",
-          auto_sync_price: pp.auto_sync_price !== false,
-        };
-      });
-    }
+    const edits = buildEdits(item);
     setProviderProductEdits(edits);
+    setInitialPP(edits);
     setPpSaveResult(null);
     setIsModalOpen(true);
   };
 
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingNominal) {
-      setConfirmEdit({ isOpen: true, isLoading: false });
-    } else {
-      executeSave();
+  const validateForm = (): string | null => {
+  const sku = (providerProductEdits[formData.provider_id]?.product_code || "").trim();
+  if (!sku) return "SKU provider aktif wajib diisi.";
+  // Cegah perubahan harga modal/toggle yang SKU-nya kosong (entry akan terbuang diam-diam)
+  for (const id of changedProviderIds) {
+    if (!(providerProductEdits[id]?.product_code || "").trim()) {
+      const name = providers?.find((p: any) => p.id === id)?.name ?? `#${id}`;
+      return `Provider ${name}: isi SKU dulu sebelum mengubah harga modal / auto-sync.`;
     }
-  };
+  }
+  return null;
+};
 
-  const executeSave = async () => {
-    try {
-      if (editingNominal) {
-        setConfirmEdit((prev) => ({ ...prev, isLoading: true }));
-        await api.put(`/admin/nominals/${editingNominal.id}`, formData);
-        setConfirmEdit({ isOpen: false, isLoading: false });
-      } else {
-        await api.post("/admin/nominals", formData);
-      }
-      setIsModalOpen(false);
-      mutate();
-    } catch (err: any) {
-      setConfirmEdit((prev) => ({ ...prev, isLoading: false }));
-      alert("Error: " + (err.response?.data?.message || err.message));
-    }
+const buildChangedEntries = () =>
+  changedProviderIds
+    .map((id) => {
+      const v = providerProductEdits[id] || EMPTY_PP;
+      return {
+        provider_id: id,
+        product_code: v.product_code.trim(),
+        cost_price: v.cost_price !== "" ? parseFloat(v.cost_price) : null,
+        auto_sync_price: v.auto_sync_price,
+      };
+    })
+    .filter((e) => e.product_code !== "");
+
+// Simpan SKU/harga modal yang berubah, lalu ambil data terbaru dari server
+const syncProviderProducts = async () => {
+  const entries = buildChangedEntries();
+  if (entries.length > 0) {
+    await api.put(`/admin/nominals/${editingNominal.id}/provider-products`, entries);
+  }
+  const fresh = await mutate();
+  const freshItem =
+    (Array.isArray(fresh?.data) && fresh.data.find((n: any) => n.id === editingNominal.id)) || null;
+
+  let newBase: number | null = null;
+  if (freshItem?.base_price != null) newBase = Number(freshItem.base_price);
+  else {
+    const c = providerProductEdits[formData.provider_id]?.cost_price;
+    if (c) newBase = parseFloat(c);
+  }
+  if (newBase !== null && (Number.isNaN(newBase) || newBase === Number(formData.base_price))) {
+    newBase = null;
+  }
+  if (freshItem) {
+    const e = buildEdits(freshItem);
+    setProviderProductEdits(e);
+    setInitialPP(e);
+    setEditingNominal(freshItem);
+  }
+  return newBase;
+};
+
+const buildNominalPayload = (data = formData) => {
+  const activeSku = (providerProductEdits[data.provider_id]?.product_code || "").trim();
+  return {
+    ...data,
+    provider_product_code: activeSku || data.provider_product_code,
+    seller_product_code: data.seller_product_code || activeSku,
   };
+};
+
+const handleFormSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  const err = validateForm();
+  if (err) return alert(err);
+  if (editingNominal) setConfirmEdit({ isOpen: true, isLoading: false });
+  else executeSave();
+};
+
+const executeSave = async () => {
+  try {
+    if (editingNominal) {
+      setConfirmEdit((p) => ({ ...p, isLoading: true }));
+      // 1) SKU & harga modal dulu, supaya dual-write backend membaca cost price yang benar
+      const newBase = await syncProviderProducts();
+      const data =
+        newBase !== null
+          ? { ...formData, base_price: newBase, ...calcTierPrices(newBase, formData.margin_percent) }
+          : formData;
+      // 2) Data nominal
+      await api.put(`/admin/nominals/${editingNominal.id}`, buildNominalPayload(data));
+      setConfirmEdit({ isOpen: false, isLoading: false });
+    } else {
+      if (isCreating) return;
+      setIsCreating(true);
+      await api.post("/admin/nominals", buildNominalPayload());
+    }
+    setIsModalOpen(false);
+    mutate();
+  } catch (err: any) {
+    setConfirmEdit((p) => ({ ...p, isLoading: false }));
+    alert("Error: " + (err.response?.data?.message || err.message));
+  } finally {
+    setIsCreating(false);
+  }
+};
+
+const saveProviderProducts = async () => {
+  if (!editingNominal) return;
+  const err = validateForm();
+  if (err) return alert(err);
+  setIsSavingPP(true);
+  setPpSaveResult(null);
+  try {
+    const newBase = await syncProviderProducts();
+    if (newBase !== null) {
+      setFormData((prev) => ({ ...prev, base_price: newBase, ...calcTierPrices(newBase, prev.margin_percent) }));
+    }
+    setPpSaveResult("success");
+    setTimeout(() => setPpSaveResult(null), 3000);
+  } catch (e: any) {
+    setPpSaveResult("error");
+    setTimeout(() => setPpSaveResult(null), 3000);
+    alert("Gagal menyimpan: " + (e.response?.data?.message || e.message));
+  } finally {
+    setIsSavingPP(false);
+  }
+};
 
   const promptDelete = (id: number, name: string) => {
     setConfirmDelete({
@@ -246,64 +383,6 @@ export default function NominalsPage() {
     }
   };
 
-  // Simpan SKU & harga modal per provider ke endpoint terpisah
-  const saveProviderProducts = async () => {
-    if (!editingNominal) return;
-    setIsSavingPP(true);
-    setPpSaveResult(null);
-    try {
-      const entries = Object.entries(providerProductEdits).map(([providerIdStr, val]) => ({
-        provider_id: parseInt(providerIdStr),
-        product_code: val.product_code.trim(),
-        cost_price: val.cost_price !== "" ? parseFloat(val.cost_price) : null,
-        auto_sync_price: val.auto_sync_price,
-        }));
-      await api.put(`/admin/nominals/${editingNominal.id}/provider-products`, entries);
-
-      // Ambil data terbaru dari server (mutate mengembalikan hasil fetch ulang)
-      const fresh = await mutate();
-      const freshItem = Array.isArray(fresh?.data)
-        ? fresh.data.find((n: any) => n.id === editingNominal.id)
-        : null;
-
-      // Tentukan base_price terbaru: prioritas dari server, fallback dari cost_price provider aktif
-      let newBase: number | null = null;
-      if (freshItem && freshItem.base_price != null) {
-        newBase = Number(freshItem.base_price);
-      } else {
-        const activeCost = providerProductEdits[formData.provider_id]?.cost_price;
-        if (activeCost !== undefined && activeCost !== "") {
-          newBase = parseFloat(activeCost);
-        }
-      }
-
-      if (newBase !== null && !Number.isNaN(newBase)) {
-        // Sinkronkan base_price & harga jual tanpa menimpa field form lain (nama, dll.)
-        setFormData((prev) => {
-          const margin = newBase! * (prev.margin_percent / 100);
-          return {
-            ...prev,
-            base_price: newBase!,
-            price_public: Math.round(newBase! + margin),
-            price_member: Math.round(newBase! + margin * 0.85),
-            price_vip: Math.round(newBase! + margin * 0.7),
-            price_reseller: Math.round(newBase! + margin * 0.5),
-          };
-        });
-      }
-
-      // Sinkronkan juga editingNominal agar data provider_products di modal tidak basi
-      if (freshItem) setEditingNominal(freshItem);
-
-      setPpSaveResult("success");
-      setTimeout(() => setPpSaveResult(null), 3000);
-    } catch (err: any) {
-      setPpSaveResult("error");
-      alert("Gagal menyimpan: " + (err.response?.data?.message || err.message));
-    } finally {
-      setIsSavingPP(false);
-    }
-  };
 
   // Open Switch Provider Modal
   const openSwitchProviderModal = (presetGameId?: number) => {
@@ -685,15 +764,12 @@ export default function NominalsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">
-                      Provider Pemrosesan *
-                    </label>
+                    <label className="block text-slate-300 font-medium mb-1">Provider Pemrosesan *</label>
                     <select
                       value={formData.provider_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, provider_id: parseInt(e.target.value) })
-                      }
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold text-indigo-300"
+                      disabled={!!editingNominal}
+                      onChange={(e) => setFormData({ ...formData, provider_id: parseInt(e.target.value) })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold text-indigo-300 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {providers?.map((p: any) => (
                         <option key={p.id} value={p.id} disabled={!p.is_active}>
@@ -701,21 +777,27 @@ export default function NominalsPage() {
                         </option>
                       ))}
                     </select>
+                    {editingNominal && (
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Untuk memindahkan provider, gunakan tombol <strong>Pindah Provider</strong> di halaman daftar
+                        (harga modal, harga jual, dan SKU ikut dihitung ulang).
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Warning if Kiosgamer selected on non-supported game */}
                 {(() => {
                   const selectedProv = providers?.find((p: any) => p.id === formData.provider_id);
-                  const isKios = selectedProv?.code?.toUpperCase() === "KIOSGAMER" || formData.provider_id === 2;
+                  const isKios = selectedProv?.code?.toUpperCase() === "KIOSGAMER";
                   const curGame = games?.find((g: any) => g.id === formData.game_id);
+                  const gSlug = (curGame?.slug || "").toLowerCase();
+                  const gName = (curGame?.name || "").toLowerCase();
                   const isGarena =
-                    curGame &&
-                    (curGame.slug?.toLowerCase().includes("free") ||
-                      curGame.slug?.toLowerCase().includes("cod") ||
-                      curGame.slug?.toLowerCase().includes("duty") ||
-                      curGame.name?.toLowerCase().includes("free fire") ||
-                      curGame.name?.toLowerCase().includes("call of duty"));
+                    gSlug.includes("free-fire") || gSlug.includes("freefire") || gName.includes("free fire") ||
+                    gSlug.includes("codm") || gSlug.includes("call-of-duty") ||
+                    gName.includes("call of duty") || gName.includes("codm");
+
 
                   if (isKios && !isGarena) {
                     return (
@@ -727,7 +809,7 @@ export default function NominalsPage() {
                       </div>
                     );
                   }
-                  if (isKios && !formData.kiosgamer_product_code.trim()) {
+                  if (isKios && !(providerProductEdits[formData.provider_id]?.product_code || "").trim()) {
                     return (
                       <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
@@ -762,12 +844,17 @@ export default function NominalsPage() {
                           ? "Edit SKU dan harga modal lalu klik \"Simpan SKU & Harga\" untuk menyimpan."
                           : "SKU Provider Utama wajib diisi. SKU lain opsional (isi jika provider tersebut digunakan untuk nominal ini)."}
                       </p>
+                      {isPPDirty && (
+                        <p className="text-[10px] text-amber-400 mt-1">
+                          Ada perubahan SKU/harga modal yang belum disimpan. Akan ikut tersimpan saat klik "Simpan Perubahan".
+                        </p>
+                      )}
                     </div>
                     {editingNominal && (
                       <button
                         type="button"
                         onClick={saveProviderProducts}
-                        disabled={isSavingPP}
+                        disabled={isSavingPP || !isPPDirty}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
                           ppSaveResult === "success"
                             ? "bg-emerald-600 text-white"
@@ -776,13 +863,9 @@ export default function NominalsPage() {
                             : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20"
                         } disabled:opacity-50`}
                       >
-                        {isSavingPP ? (
-                          "Menyimpan..."
-                        ) : ppSaveResult === "success" ? (
-                          <><Check className="w-3.5 h-3.5" /> Tersimpan!</>
-                        ) : (
-                          "Simpan SKU & Harga"
-                        )}
+                        {isSavingPP ? "Menyimpan..." : ppSaveResult === "success"
+                          ? <><Check className="w-3.5 h-3.5" /> Tersimpan!</>
+                          : isPPDirty ? "Simpan SKU & Harga •" : "Simpan SKU & Harga"}
                       </button>
                     )}
                   </div>
@@ -826,31 +909,15 @@ export default function NominalsPage() {
                               <input
                                 type="text"
                                 placeholder={`Kode ${prov.name}`}
-                                value={
-                                  // Untuk provider aktif (form utama), sync dua arah dengan formData
-                                  isSelected && !editingNominal
-                                    ? formData.provider_product_code
-                                    : editingNominal
-                                    ? ppEdit.product_code
-                                    : formData.provider_product_code
+                                value={ppEdit.product_code}
+                                disabled={!editingNominal && !isSelected}
+                                onChange={(e) =>
+                                  setProviderProductEdits((prev) => ({
+                                    ...prev,
+                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), product_code: e.target.value },
+                                  }))
                                 }
-                                onChange={(e) => {
-                                  if (isSelected && !editingNominal) {
-                                    // Saat create: sync ke formData.provider_product_code
-                                    setFormData({ ...formData, provider_product_code: e.target.value });
-                                  } else {
-                                    // Saat edit: update providerProductEdits
-                                    setProviderProductEdits((prev) => ({
-                                      ...prev,
-                                      [prov.id]: { ...(prev[prov.id] || EMPTY_PP), product_code: e.target.value },
-                                    }));
-                                    // Juga sync ke formData jika ini provider aktif (untuk backward compat)
-                                    if (isSelected) {
-                                      setFormData({ ...formData, provider_product_code: e.target.value });
-                                    }
-                                  }
-                                }}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                               />
                             </div>
                             <div>
@@ -1042,9 +1109,10 @@ export default function NominalsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30"
+                    disabled={isCreating}
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 disabled:opacity-50"
                   >
-                    {editingNominal ? "Simpan Perubahan" : "Buat Nominal"}
+                    {isCreating ? "Menyimpan..." : editingNominal ? "Simpan Perubahan" : "Buat Nominal"}
                   </button>
                 </div>
               </form>
