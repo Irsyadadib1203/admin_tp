@@ -887,6 +887,38 @@ const saveProviderProducts = async () => {
                     )}
                   </div>
                 </div>
+                {/* Nama Nominal & SKU Seller */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">Nama Nominal *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: 86 Diamonds / Free Fire 140 DM"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-amber-300 font-medium mb-1">
+                      SKU Seller / H2H
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: MLBB_86, FF_140DM"
+                      value={formData.seller_product_code}
+                      onChange={(e) =>
+                        setFormData({ ...formData, seller_product_code: e.target.value })
+                      }
+                      className="w-full bg-slate-950 border border-amber-500/30 rounded-xl py-2 px-3 text-amber-200 focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Kode untuk customer H2H/reseller. Kosong = pakai SKU provider utama.
+                    </p>
+                  </div>
+                </div>
 
                 {/* Warning if Kiosgamer selected on non-supported game */}
                 {(() => {
@@ -924,17 +956,7 @@ const saveProviderProducts = async () => {
                   return null;
                 })()}
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Nama Nominal *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: 86 Diamonds / Free Fire 140 DM"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+                
 
                 {/* SKU Provider — Dynamic per provider */}
                 <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 space-y-3">
@@ -1091,25 +1113,6 @@ const saveProviderProducts = async () => {
                         </div>
                       );
                     })}
-                  </div>
-
-                  {/* SKU H2H (seller_product_code) — selalu tampil */}
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3">
-                    <label className="block text-amber-300 font-semibold text-xs mb-1.5">
-                      SKU Seller / H2H (seller_product_code)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: MLBB_86, FF_140DM"
-                      value={formData.seller_product_code}
-                      onChange={(e) =>
-                        setFormData({ ...formData, seller_product_code: e.target.value })
-                      }
-                      className="w-full bg-slate-900 border border-amber-500/30 rounded-lg py-1.5 px-2.5 text-amber-200 focus:outline-none focus:border-amber-400 font-mono text-xs"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Kode produk yang ditampilkan ke customer H2H/reseller. Jika kosong, menggunakan SKU provider utama.
-                    </p>
                   </div>
                 </div>
 
