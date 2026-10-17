@@ -19,6 +19,7 @@ import {
   Server,
   Zap,
   ExternalLink,
+  Hash,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -114,6 +115,46 @@ export default function TransactionsPage() {
     isLoading: false,
   });
 
+    const [refModal, setRefModal] = useState<{
+    isOpen: boolean;
+    txId: number | null;
+    invoice: string;
+    currentRef: string;
+    isLoading: boolean;
+  }>({ isOpen: false, txId: null, invoice: "", currentRef: "", isLoading: false });
+
+  const canRegenerateRef = (status?: string) =>
+    status === "pending" || status === "processing" || status === "failed";
+
+  const handleRegenRefPrompt = (tx: any) =>
+    setRefModal({
+      isOpen: true,
+      txId: tx.id,
+      invoice: tx.invoice_number,
+      currentRef: tx.provider_ref_id || "-",
+      isLoading: false,
+    });
+
+  const executeRegenRef = async () => {
+    if (!refModal.txId) return;
+    const txId = refModal.txId;
+    setRefModal((p) => ({ ...p, isLoading: true }));
+    try {
+      const res = await api.post(`/admin/transactions/${txId}/regenerate-ref`);
+      const updated = res.data?.data;
+      setRefModal({ isOpen: false, txId: null, invoice: "", currentRef: "", isLoading: false });
+      mutate();
+      if (selectedTx?.id === txId) setSelectedTx(updated);
+      if (responseModal.isOpen && responseModal.tx?.id === txId) {
+        setResponseModal((prev) => ({ ...prev, tx: updated }));
+      }
+      alert(`ProviderRefID baru:\n${updated?.provider_ref_id || "-"}`);
+    } catch (err: any) {
+      setRefModal((p) => ({ ...p, isLoading: false }));
+      alert("Gagal regenerate ProviderRefID: " + (err.response?.data?.message || err.message));
+    }
+  };
+
   const [checkingStatusTxId, setCheckingStatusTxId] = useState<number | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -187,8 +228,16 @@ export default function TransactionsPage() {
     }).format(val || 0);
   };
 
+    // 200 ms | 2.35 s | 30.05 m  (maksimal satuan menit, 3 jam = 180 m)
+  const formatDuration = (ms: number) => {
+    if (!Number.isFinite(ms) || ms < 0) return "-";
+    if (ms < 1000) return `${Math.floor(ms)} ms`;
+    if (ms < 60000) return `${(Math.floor(ms / 10) / 100).toFixed(2)} s`;
+    return `${(Math.floor(ms / 600) / 100).toFixed(2)} m`;
+  };
+
   const calculateSpeed = (tx: any) => {
-    if (!tx) return "00.00.00.00";
+    if (!tx) return "-";
     const startTime = new Date(tx.payment_verified_at || tx.created_at).getTime();
     const endTime = tx.completed_at
       ? new Date(tx.completed_at).getTime()
@@ -196,20 +245,17 @@ export default function TransactionsPage() {
       ? new Date(tx.updated_at).getTime()
       : (tx.status === "processing" || tx.status === "pending" ? Date.now() : null);
 
-    if (!startTime || !endTime || endTime < startTime) {
-      return "00.00.00.00";
-    }
+    if (!startTime || !endTime || endTime < startTime) return "-";
+    return formatDuration(endTime - startTime);
+  };
 
-    const diffMs = Math.max(0, endTime - startTime);
-    const totalSeconds = Math.floor(diffMs / 1000);
-    const ms = Math.floor((diffMs % 1000) / 10); // 2-digit ms (00-99)
-    const seconds = totalSeconds % 60;
-    const minutes = Math.floor(totalSeconds / 60) % 60;
-    const hours = Math.floor(totalSeconds / 3600);
-
-    const pad = (n: number) => n.toString().padStart(2, "0");
-
-    return `${pad(hours)}.${pad(minutes)}.${pad(seconds)}.${pad(ms)}`;
+  // Selisih waktu order dimulai -> respons pertama provider
+  const calculateLatency = (tx: any) => {
+    if (!tx?.provider_first_response_at) return "-";
+    const start = new Date(tx.payment_verified_at || tx.created_at).getTime();
+    const end = new Date(tx.provider_first_response_at).getTime();
+    if (!start || !end || end < start) return "-";
+    return formatDuration(end - start);
   };
 
   const { data: providers } = useSWR("/admin/providers", (u: string) => api.get(u).then((r) => r.data.data));
@@ -649,6 +695,15 @@ const getProviderName = (tx: any) =>
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === tx.id ? "animate-spin" : ""}`} />
                         </button>
+                          {canRegenerateRef(tx.status) && (
+                          <button
+                            onClick={() => handleRegenRefPrompt(tx)}
+                            className="p-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 transition-colors"
+                            title="Regenerate ProviderRefID"
+                          >
+                            <Hash className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {!["success", "refunded"].includes(tx.status) && (
                           <>
                             {/* Tombol 2: Proses Ulang (Kirim Order Baru) */}
@@ -975,6 +1030,18 @@ const getProviderName = (tx: any) =>
                 <span className="text-slate-500 block truncate">
                   Pesan: {selectedTx.provider_message || "-"}
                 </span>
+                <span className="text-slate-400 block">
+                  Provider Latency:{" "}
+                  <span className="font-mono font-semibold text-sky-300">
+                    {calculateLatency(selectedTx)}
+                  </span>
+                </span>
+                <span
+                  className="text-slate-500 block truncate font-mono"
+                  title={selectedTx.provider_ref_id}
+                >
+                  Provider Ref: {selectedTx.provider_ref_id || "-"}
+                </span>
               </div>
             </div>
 
@@ -1000,6 +1067,15 @@ const getProviderName = (tx: any) =>
                 <Code2 className="w-3.5 h-3.5 text-indigo-400" />
                 Lihat Response JSON
               </button>
+              {canRegenerateRef(selectedTx.status) && (
+                <button
+                  onClick={() => handleRegenRefPrompt(selectedTx)}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/30"
+                >
+                  <Hash className="w-3.5 h-3.5" />
+                  Regenerate Ref
+                </button>
+              )}
 
               {!["success", "refunded"].includes(selectedTx.status) && (
                 <>
@@ -1102,6 +1178,33 @@ const getProviderName = (tx: any) =>
         cancelText="Batal"
         variant="primary"
         isLoading={retryModal.isLoading}
+      />
+      
+        <ConfirmModal
+        isOpen={refModal.isOpen}
+        onClose={() =>
+          setRefModal({ isOpen: false, txId: null, invoice: "", currentRef: "", isLoading: false })
+        }
+        onConfirm={executeRegenRef}
+        title="Regenerate ProviderRefID?"
+        message={
+          <div className="space-y-2.5">
+            <p className="text-slate-200 text-xs leading-relaxed">
+              ProviderRefID untuk invoice{" "}
+              <strong className="text-white font-mono">{refModal.invoice}</strong> akan diganti dengan yang baru.
+            </p>
+            <p className="text-xs text-slate-400 font-mono break-all">Ref saat ini: {refModal.currentRef}</p>
+            <p className="text-amber-300 text-xs p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
+              ⚠️ Ini hanya mengganti ref di transaksi, <strong>tidak mengirim order</strong> dan tidak mengubah saldo.
+              Ref baru dipakai saat Proses Ulang berikutnya. Callback provider yang masih membawa ref lama tidak akan cocok lagi.
+              Jangan dipakai jika order sudah sampai ke provider (cek status dulu).
+            </p>
+          </div>
+        }
+        confirmText="Ya, Buat Ref Baru"
+        cancelText="Batal"
+        variant="primary"
+        isLoading={refModal.isLoading}
       />
 
       {/* Prompt Modal - Manual Success */}
