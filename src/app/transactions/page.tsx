@@ -602,25 +602,8 @@ const getProviderName = (tx: any) =>
                     <td className="py-3.5 px-4 font-semibold text-slate-100">
                       {formatRupiah(tx.total_amount)}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-1.5 font-mono text-xs font-semibold">
-                        {tx.status === "success" ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 shadow-sm">
-                            <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                            {calculateSpeed(tx)}
-                          </span>
-                        ) : tx.status === "processing" || tx.status === "pending" ? (
-                          <span className="inline-flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
-                            <Clock className="w-3 h-3 animate-spin" />
-                            {calculateSpeed(tx)}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700/60">
-                            <Clock className="w-3 h-3 text-slate-500" />
-                            {calculateSpeed(tx)}
-                          </span>
-                        )}
-                      </div>
+                    <td className="py-3.5 px-4 font-semibold text-slate-100">
+                      {calculateSpeed(tx)}
                     </td>
                     
                     <td className="py-3.5 px-4">
@@ -1179,7 +1162,7 @@ const getProviderName = (tx: any) =>
         variant="primary"
         isLoading={retryModal.isLoading}
       />
-      
+
         <ConfirmModal
         isOpen={refModal.isOpen}
         onClose={() =>
