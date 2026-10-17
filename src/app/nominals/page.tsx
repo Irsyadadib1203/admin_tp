@@ -690,7 +690,7 @@ const saveProviderProducts = async () => {
                 </th>
                 <th className="py-3.5 px-3">Provider</th>
                 <th className="py-3.5 px-3">SKU Provider / Seller</th>
-                <th className="py-3.5 px-3">
+                  <th className="py-3.5 px-3">
                   <button
                     type="button"
                     onClick={() => toggleSort("base_price")}
@@ -704,7 +704,7 @@ const saveProviderProducts = async () => {
                 <th className="py-3.5 px-3">Harga Member</th>
                 <th className="py-3.5 px-3">Reseller H2H</th>
                 <th className="py-3.5 px-3">Status</th>
-                <th className="py-3.5 px-4 text-right">Aksi</th>
+                <th className="py-3.5 px-4 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">

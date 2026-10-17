@@ -547,10 +547,10 @@ const getProviderName = (tx: any) =>
                 <th className="py-3.5 px-4">Game & Nominal</th>
                 <th className="py-3.5 px-4">Tujuan Akun</th>
                 <th className="py-3.5 px-4">Total Bayar</th>
-                <th className="py-3.5 px-4">Speed</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4">Response Provider</th>
-                <th className="py-3.5 px-5 text-right">Aksi</th>
+                <th className="py-3.5 px-4 min-w-[120px]">Speed</th>
+                <th className="py-3.5 px-4 text-center">Status</th>
+                <th className="py-3.5 px-4 text-center">Response Provider</th>
+                <th className="py-3.5 px-5 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -602,7 +602,7 @@ const getProviderName = (tx: any) =>
                     <td className="py-3.5 px-4 font-semibold text-slate-100">
                       {formatRupiah(tx.total_amount)}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-100">
+                    <td className="py-3.5 px-4 min-w-[120px] font-semibold text-slate-100 whitespace-nowrap">
                       {calculateSpeed(tx)}
                     </td>
                     
