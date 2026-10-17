@@ -19,6 +19,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -70,6 +73,33 @@ const buildEdits = (item: any): Record<number, PPEdit> => {
 export default function NominalsPage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
   const [selectedProvider, setSelectedProvider] = useState<string>("");
+    const [statusFilter, setStatusFilter] = useState<"" | "true" | "false">("");
+  const [sortBy, setSortBy] = useState<"" | "name" | "base_price">("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Klik 1: naik, klik 2: turun, klik 3: kembali ke urutan default
+  const toggleSort = (key: "name" | "base_price") => {
+    if (sortBy !== key) {
+      setSortBy(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortBy("");
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
+
+  const sortIcon = (key: "name" | "base_price") => {
+    if (sortBy !== key) return <ArrowUpDown className="w-3 h-3 text-slate-600" />;
+    return sortDir === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-indigo-400" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-indigo-400" />
+    );
+  };
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
@@ -140,7 +170,7 @@ export default function NominalsPage() {
     mutate,
     isLoading,
   } = useSWR(
-    `/admin/nominals?page=${page}&limit=${limit}&game_id=${selectedGame}&provider_id=${selectedProvider}&search=${search}`,
+    `/admin/nominals?page=${page}&limit=${limit}&game_id=${selectedGame}&provider_id=${selectedProvider}&search=${search}&is_active=${statusFilter}&sort_by=${sortBy}&sort_dir=${sortBy ? sortDir : ""}`,
     paginatedFetcher
   );
 
@@ -599,6 +629,21 @@ const saveProviderProducts = async () => {
               ))}
             </select>
           </div>
+          {/* Status Filter */}
+          <div className="flex-1 sm:flex-initial">
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as "" | "true" | "false");
+                setPage(1);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="">Semua Status</option>
+              <option value="true">Aktif</option>
+              <option value="false">Nonaktif</option>
+            </select>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -633,10 +678,28 @@ const saveProviderProducts = async () => {
                     className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0"
                   />
                 </th>
-                <th className="py-3.5 px-4">Game & Item</th>
+                  <th className="py-3.5 px-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("name")}
+                    className="inline-flex items-center gap-1.5 hover:text-slate-200 transition-colors"
+                    title="Urutkan berdasarkan nama item"
+                  >
+                    Game & Item {sortIcon("name")}
+                  </button>
+                </th>
                 <th className="py-3.5 px-3">Provider</th>
                 <th className="py-3.5 px-3">SKU Provider / Seller</th>
-                <th className="py-3.5 px-3">Modal Dasar</th>
+                <th className="py-3.5 px-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("base_price")}
+                    className="inline-flex items-center gap-1.5 hover:text-slate-200 transition-colors"
+                    title="Urutkan berdasarkan modal dasar"
+                  >
+                    Modal Dasar {sortIcon("base_price")}
+                  </button>
+                </th>
                 <th className="py-3.5 px-3">Harga Publik</th>
                 <th className="py-3.5 px-3">Harga Member</th>
                 <th className="py-3.5 px-3">Reseller H2H</th>
