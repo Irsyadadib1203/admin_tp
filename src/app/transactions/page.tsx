@@ -60,6 +60,7 @@ export default function TransactionsPage() {
   const [limit, setLimit] = useState(20);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [providerStatusFilter, setProviderStatusFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -119,7 +120,7 @@ export default function TransactionsPage() {
   const [bulkModal, setBulkModal] = useState<{ isOpen: boolean; action: "retry" | "success" | "fail" | null; notes: string; isLoading: boolean }>({ isOpen: false, action: null, notes: "", isLoading: false });
   const [bulkResult, setBulkResult] = useState<any | null>(null);
 
-  useEffect(() => { setSelectedIds([]); }, [page, limit, providerStatusFilter, search, startDate, endDate]);
+  useEffect(() => { setSelectedIds([]); }, [page, limit, providerFilter, providerStatusFilter, search, startDate, endDate]);
 
   
   const queryParams = new URLSearchParams({
@@ -128,6 +129,9 @@ export default function TransactionsPage() {
     search,
   });
 
+  if (providerFilter) {
+    queryParams.set("provider_id", providerFilter);
+  }
   if (providerStatusFilter) {
     queryParams.set("provider_status", providerStatusFilter);
   }
@@ -258,11 +262,15 @@ const getProviderName = (tx: any) =>
   const formatJSONRequest = (tx: any) => prettyJSON(providerExchange(tx).request);
 
   const [copiedKey, setCopiedKey] = useState<"" | "request" | "response">("");
-const copyBlock = (key: "request" | "response", text: string) => {
-  navigator.clipboard.writeText(text);
-  setCopiedKey(key);
-  setTimeout(() => setCopiedKey(""), 2000);
-};
+  const copyBlock = async (key: "request" | "response", text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(""), 2000);
+    } catch {
+      alert("Gagal menyalin. Salin manual dari kotak JSON.");
+    }
+  };
 
   const handleCheckStatus = async (tx: any) => {
     if (!tx?.id) return;
@@ -373,6 +381,21 @@ const copyBlock = (key: "request" | "response", text: string) => {
 
         
         <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={providerFilter}
+          onChange={(e) => {
+            setProviderFilter(e.target.value);
+            setPage(1);
+          }}
+          className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+        >
+          <option value="">Semua Provider</option>
+          {providers?.map((p: any) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
           <select
             value={providerStatusFilter}
             onChange={(e) => {
@@ -440,6 +463,7 @@ const copyBlock = (key: "request" | "response", text: string) => {
 
           <button
             onClick={() => {
+              setProviderFilter("");
               setProviderStatusFilter("");
               setStartDate("");
               setEndDate("");
@@ -845,7 +869,7 @@ const copyBlock = (key: "request" | "response", text: string) => {
                   <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === responseModal.tx.id ? "animate-spin" : ""}`} />
                   Cek Status Provider
                 </button>
-                {responseModal.tx.status !== "success" && (
+                {canRetryTransaction(responseModal.tx.status) && (
                   <button
                     onClick={() => {
                       const tx = responseModal.tx;
