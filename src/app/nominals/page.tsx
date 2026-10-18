@@ -394,10 +394,31 @@ const executeSave = async () => {
         }
       }
       setConfirmEdit({ isOpen: false, isLoading: false });
-    } else {
+        } else {
       if (isCreating) return;
       setIsCreating(true);
-      await api.post("/admin/nominals", buildNominalPayload());
+
+      // Harga modal provider aktif (kalau diisi) jadi modal dasar + hitung ulang tier
+      const activeCost = parseFloat(providerProductEdits[formData.provider_id]?.cost_price || "");
+      const data =
+        activeCost > 0
+          ? { ...formData, base_price: activeCost, ...calcTierPrices(activeCost, formData.margin_percent) }
+          : formData;
+
+      const res = await api.post("/admin/nominals", buildNominalPayload(data));
+      const newId = res.data?.data?.id;
+      const entries = buildChangedEntries();
+      if (newId && entries.length > 0) {
+        try {
+          await api.put(`/admin/nominals/${newId}/provider-products`, entries);
+        } catch (ppErr: any) {
+          alert(
+            "Nominal sudah dibuat, tetapi SKU/harga modal provider gagal disimpan: " +
+              (ppErr.response?.data?.message || ppErr.message) +
+              "\nSilakan edit nominal tersebut dan simpan ulang SKU & harga."
+          );
+        }
+      }
     }
     setIsModalOpen(false);
     mutate();
@@ -830,7 +851,7 @@ const saveProviderProducts = async () => {
       {isModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto my-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto my-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base sm:text-lg font-bold text-white">
                   {editingNominal
@@ -966,7 +987,7 @@ const saveProviderProducts = async () => {
                       <p className="text-[11px] text-slate-400 mt-0.5">
                         {editingNominal
                           ? "Edit SKU dan harga modal lalu klik \"Simpan SKU & Harga\" untuk menyimpan."
-                          : "SKU Provider Utama wajib diisi. SKU lain opsional (isi jika provider tersebut digunakan untuk nominal ini)."}
+                          : "SKU provider utama wajib diisi. Provider lain opsional. Semua tersimpan otomatis saat nominal dibuat."}
                       </p>
                       {isPPDirty && (
                         <p className="text-[10px] text-amber-400 mt-1">
@@ -995,11 +1016,11 @@ const saveProviderProducts = async () => {
                   </div>
 
                   {/* Loop per provider */}
-                  <div className="space-y-2">
-                    {(providers || []).map((prov: any, idx: number) => {
+                                    <div className="space-y-2.5">
+                    {(providers || []).map((prov: any) => {
                       const isSelected = formData.provider_id === prov.id;
                       const ppEdit = providerProductEdits[prov.id] || EMPTY_PP;
-                      const badgeColors = [
+                      const cardColors = [
                         "border-sky-500/40 bg-sky-950/30",
                         "border-emerald-500/40 bg-emerald-950/30",
                         "border-violet-500/40 bg-violet-950/30",
@@ -1007,78 +1028,36 @@ const saveProviderProducts = async () => {
                         "border-rose-500/40 bg-rose-950/30",
                         "border-cyan-500/40 bg-cyan-950/30",
                       ];
-                      const labelColors = ["text-sky-300","text-emerald-300","text-violet-300","text-amber-300","text-rose-300","text-cyan-300"];
-                      const colorIdx = (prov.id - 1 + badgeColors.length) % badgeColors.length;
+                      const labelColors = ["text-sky-300", "text-emerald-300", "text-violet-300", "text-amber-300", "text-rose-300", "text-cyan-300"];
+                      const colorIdx = (prov.id - 1 + cardColors.length) % cardColors.length;
                       return (
                         <div
                           key={prov.id}
-                          className={`rounded-xl border p-3 ${badgeColors[colorIdx]} ${isSelected ? "ring-1 ring-indigo-500/50" : ""}`}
+                          className={`rounded-xl border p-3 ${cardColors[colorIdx]} ${isSelected ? "ring-1 ring-indigo-500/50" : ""}`}
                         >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-xs font-bold ${labelColors[colorIdx]}`}>
-                              {prov.name}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-mono">({prov.code})</span>
-                            {isSelected && (
-                              <span className="text-[10px] bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">
-                                {isProviderChanged ? "Provider Tujuan" : "Provider Aktif"}
-                              </span>
-                            )}
-                            {isProviderChanged && prov.id === originalProviderId && (
-                              <span className="text-[10px] text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded-full">
-                                Saat ini
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] text-slate-400 mb-1">
-                                SKU / Kode Produk {isSelected ? "*" : ""}
-                              </label>
-                              <input
-                                type="text"
-                                placeholder={`Kode ${prov.name}`}
-                                value={ppEdit.product_code}
-                                disabled={!editingNominal && !isSelected}
-                                onChange={(e) =>
-                                  setProviderProductEdits((prev) => ({
-                                    ...prev,
-                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), product_code: e.target.value },
-                                  }))
-                                }
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                              />
+                          {/* Header: nama, badge, toggle */}
+                          <div className="flex items-center justify-between gap-3 mb-2.5">
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                              <span className={`text-xs font-bold ${labelColors[colorIdx]}`}>{prov.name}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">({prov.code})</span>
+                              {isSelected && (
+                                <span className="text-[10px] bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">
+                                  {isProviderChanged ? "Provider Tujuan" : "Provider Aktif"}
+                                </span>
+                              )}
+                              {isProviderChanged && prov.id === originalProviderId && (
+                                <span className="text-[10px] text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded-full">
+                                  Saat ini
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              <label className="block text-[10px] text-slate-400 mb-1">
-                                Harga Modal (Rp) {editingNominal ? "" : "— isi setelah simpan nominal"}
-                              </label>
-                              <input
-                                type="number"
-                                placeholder="Harga beli dari provider"
-                                value={editingNominal ? ppEdit.cost_price : ""}
-                                disabled={!editingNominal}
-                                onChange={(e) => {
-                                  if (!editingNominal) return;
-                                  setProviderProductEdits((prev) => ({
-                                    ...prev,
-                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), cost_price: e.target.value },
-                                  }));
-                                }}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                              />
-                            </div>
-                          </div>
-                          {editingNominal && (
-                            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/60">
-                              <div>
-                                <span className="text-[11px] text-slate-300 font-medium">Auto-sync harga modal</span>
-                                <p className="text-[10px] text-slate-500">
-                                  {ppEdit.auto_sync_price
-                                    ? "Harga modal ikut diperbarui otomatis dari provider."
-                                    : "Harga modal dikunci, tidak diubah sync otomatis."}
-                                </p>
-                              </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span
+                                className="text-[10px] text-slate-400"
+                                title={ppEdit.auto_sync_price ? "Harga modal ikut sync otomatis dari provider" : "Harga modal dikunci"}
+                              >
+                                Auto-sync
+                              </span>
                               <button
                                 type="button"
                                 role="switch"
@@ -1092,7 +1071,7 @@ const saveProviderProducts = async () => {
                                     },
                                   }))
                                 }
-                                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                className={`relative w-9 h-5 rounded-full transition-colors ${
                                   ppEdit.auto_sync_price ? "bg-emerald-500" : "bg-slate-700"
                                 }`}
                               >
@@ -1103,11 +1082,47 @@ const saveProviderProducts = async () => {
                                 />
                               </button>
                             </div>
-                          )}
-                          {/* SKU Kiosgamer legacy sync — jika code = KIOSGAMER */}
+                          </div>
+
+                          {/* Input SKU & harga modal */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                SKU / Kode Produk {isSelected ? "*" : ""}
+                              </label>
+                              <input
+                                type="text"
+                                placeholder={`Kode ${prov.name}`}
+                                value={ppEdit.product_code}
+                                onChange={(e) =>
+                                  setProviderProductEdits((prev) => ({
+                                    ...prev,
+                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), product_code: e.target.value },
+                                  }))
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">Harga Modal (Rp)</label>
+                              <input
+                                type="number"
+                                placeholder="Harga beli dari provider"
+                                value={ppEdit.cost_price}
+                                onChange={(e) =>
+                                  setProviderProductEdits((prev) => ({
+                                    ...prev,
+                                    [prov.id]: { ...(prev[prov.id] || EMPTY_PP), cost_price: e.target.value },
+                                  }))
+                                }
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 px-2.5 text-emerald-300 focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                              />
+                            </div>
+                          </div>
+
                           {prov.code?.toUpperCase() === "KIOSGAMER" && (
-                            <p className="text-[10px] text-amber-400/70 mt-1.5">
-                              💡 SKU Kiosgamer biasanya berupa angka item_id (mis: 1, 2, 14, 103). Khusus game Garena (FF & CODM).
+                            <p className="text-[10px] text-amber-400/70 mt-2">
+                              💡 SKU Kiosgamer berupa angka item_id (mis: 1, 2, 14, 103). Khusus game Garena (FF & CODM).
                             </p>
                           )}
                         </div>
