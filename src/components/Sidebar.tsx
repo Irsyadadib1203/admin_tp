@@ -23,6 +23,7 @@ import {
   X,
   ShieldAlert,
   CircleDollarSign,
+  Scale,
 } from "lucide-react";
 import { clearAuthSession, getStoredUser } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -42,6 +43,7 @@ const allNavItems: NavItem[] = [
   { name: "Transactions", href: "/transactions", icon: Receipt, resource: "transactions" },
   { name: "Games Catalog", href: "/games", icon: Gamepad2, resource: "games" },
   { name: "Nominals & Prices", href: "/nominals", icon: Tags, resource: "nominals" },
+  { name: "Perbandingan Harga", href: "/price-compare", icon: Scale, resource: "nominals" },
   { name: "Banner & Promo", href: "/banners", icon: Image, resource: "banners" },
   { name: "Berita & Artikel", href: "/articles", icon: Newspaper, resource: "articles" },
   { name: "Providers Center", href: "/providers", icon: Zap, resource: "settings" },
