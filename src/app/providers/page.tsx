@@ -80,6 +80,17 @@ type ASMarketSettings = {
   api_key_configured: boolean;
 };
 
+// [TAMBAH] tipe, di bawah ASMarketSettings
+type VexagameSettings = {
+  configured: boolean;
+  name: string;
+  base_url: string;
+  is_active: boolean;
+  api_key_configured: boolean;
+  pin_configured: boolean;
+   webhook_secret_configured: boolean; 
+};
+
 type KiosgamerStatus = {
   configured: boolean;
   status: string;
@@ -138,6 +149,11 @@ export default function ProvidersPage() {
 
     // ASMarket State
   const [asmarket, setAsmarket] = useState<ASMarketSettings | null>(null);
+
+  // Vexagame State
+  const [vexagame, setVexagame] = useState<VexagameSettings | null>(null);
+  const [vexagamePin, setVexagamePin] = useState(""); 
+  const [vexagameWebhookSecret, setVexagameWebhookSecret] = useState("");
 
   // Kiosgamer States
   const [kiosStatus, setKiosStatus] = useState<KiosgamerStatus | null>(null);
@@ -292,6 +308,17 @@ export default function ProvidersPage() {
       } catch {
         // fallback
       }
+    } else if (code === "VEXAGAME") {
+      try {
+        const res = await api.get("/admin/providers/vexagame");
+        const data: VexagameSettings = res.data.data;
+        setVexagame(data);
+        setName(data.name);
+        setBaseURL(data.base_url);
+        setIsActive(data.is_active);
+      } catch {
+        // fallback
+      }
     } else if (code === "KIOSGAMER") {
       try {
         const res = await api.get("/admin/kiosgamer/status");
@@ -392,6 +419,31 @@ export default function ProvidersPage() {
       setNotice("Konfigurasi ASMarket tersimpan.");
     } catch (error: any) {
       setNotice(error.response?.data?.message || "Gagal menyimpan ASMarket.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveVexagame = async () => {
+    setSaving(true);
+    setNotice("");
+    try {
+      await api.put("/admin/providers/vexagame", {
+        name,
+        base_url: baseURL,
+        api_key: apiKey,
+        pin: vexagamePin,
+        webhook_secret: vexagameWebhookSecret, 
+        is_active: isActive,
+      });
+      setAPIKey("");
+      setVexagamePin("");
+      setVexagameWebhookSecret("");
+      const fresh = await api.get("/admin/providers/vexagame");
+      setVexagame(fresh.data.data);
+      await mutate();
+      setNotice("Konfigurasi Vexagame tersimpan.");
+    } catch (error: any) {
+      setNotice(error.response?.data?.message || "Gagal menyimpan Vexagame.");
     } finally {
       setSaving(false);
     }
@@ -959,6 +1011,70 @@ export default function ProvidersPage() {
               </div>
             )}
 
+            {/* VEXAGAME MODAL CONTENT */}
+            {selected.code.toUpperCase() === "VEXAGAME" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100" />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Base URL Vexagame</label>
+                  <input type="url" value={baseURL} onChange={(e) => setBaseURL(e.target.value)}
+                    placeholder="https://api.vexaagen.com/v2"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    API Key Vexagame{" "}
+                    {vexagame?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={apiKey} onChange={(e) => setAPIKey(e.target.value)}
+                      placeholder={vexagame?.api_key_configured ? "Kosongkan untuk mempertahankan API key saat ini" : "Masukkan API key Vexagame"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    PIN Transaksi{" "}
+                    {vexagame?.pin_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={vexagamePin} onChange={(e) => setVexagamePin(e.target.value)}
+                      placeholder={vexagame?.pin_configured ? "Kosongkan untuk mempertahankan PIN saat ini" : "PIN akun Vexagame untuk membayar order"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    Webhook Secret (Callback Token){" "}
+                    {vexagame?.webhook_secret_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={vexagameWebhookSecret} onChange={(e) => setVexagameWebhookSecret(e.target.value)}
+                      placeholder={vexagame?.webhook_secret_configured ? "Kosongkan untuk mempertahankan secret saat ini" : "Kosongkan jika sama dengan API key"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer">
+                  <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded text-indigo-600" />
+                  <span>Aktifkan Vexagame</span>
+                </label>
+                <div className="flex justify-end pt-2">
+                  <button onClick={saveVexagame} disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition">
+                    <Save className="h-4 w-4" />
+                    {saving ? "Menyimpan..." : "Simpan Vexagame"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ASMARKET MODAL CONTENT */}
             {selected.code.toUpperCase() === "ASMARKET" && (
               <div className="space-y-4 text-xs">
@@ -1097,7 +1213,8 @@ export default function ProvidersPage() {
               selected.code.toUpperCase() !== "KIOSGAMER" &&
               selected.code.toUpperCase() !== "FFZSTORE" &&
               selected.code.toUpperCase() !== "EXCELLENTSTORE" && 
-               selected.code.toUpperCase() !== "ASMARKET" && (
+               selected.code.toUpperCase() !== "ASMARKET" && 
+               selected.code.toUpperCase() !== "VEXAGAME" && (   
                 <div className="space-y-4 text-xs">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
