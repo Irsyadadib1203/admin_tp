@@ -72,6 +72,14 @@ type ExcellentStoreSettings = {
   secret_configured: boolean;
 };
 
+type ASMarketSettings = {
+  configured: boolean;
+  name: string;
+  base_url: string;
+  is_active: boolean;
+  api_key_configured: boolean;
+};
+
 type KiosgamerStatus = {
   configured: boolean;
   status: string;
@@ -127,6 +135,9 @@ export default function ProvidersPage() {
   // ExcellentStore State
   const [excellent, setExcellent] = useState<ExcellentStoreSettings | null>(null);
   const [excellentSecret, setExcellentSecret] = useState("");
+
+    // ASMarket State
+  const [asmarket, setAsmarket] = useState<ASMarketSettings | null>(null);
 
   // Kiosgamer States
   const [kiosStatus, setKiosStatus] = useState<KiosgamerStatus | null>(null);
@@ -270,6 +281,17 @@ export default function ProvidersPage() {
       } catch {
         // fallback
       }
+    } else if (code === "ASMARKET") {
+      try {
+        const res = await api.get("/admin/providers/asmarket");
+        const data: ASMarketSettings = res.data.data;
+        setAsmarket(data);
+        setName(data.name);
+        setBaseURL(data.base_url);
+        setIsActive(data.is_active);
+      } catch {
+        // fallback
+      }
     } else if (code === "KIOSGAMER") {
       try {
         const res = await api.get("/admin/kiosgamer/status");
@@ -348,6 +370,28 @@ export default function ProvidersPage() {
       setNotice("Konfigurasi ExcellentStore tersimpan.");
     } catch (error: any) {
       setNotice(error.response?.data?.message || "Gagal menyimpan ExcellentStore.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+    const saveASMarket = async () => {
+    setSaving(true);
+    setNotice("");
+    try {
+      await api.put("/admin/providers/asmarket", {
+        name,
+        base_url: baseURL,
+        api_key: apiKey,
+        is_active: isActive,
+      });
+      setAPIKey("");
+      const fresh = await api.get("/admin/providers/asmarket");
+      setAsmarket(fresh.data.data);
+      await mutate();
+      setNotice("Konfigurasi ASMarket tersimpan.");
+    } catch (error: any) {
+      setNotice(error.response?.data?.message || "Gagal menyimpan ASMarket.");
     } finally {
       setSaving(false);
     }
@@ -915,6 +959,73 @@ export default function ProvidersPage() {
               </div>
             )}
 
+            {/* ASMARKET MODAL CONTENT */}
+            {selected.code.toUpperCase() === "ASMARKET" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Base URL ASMarket</label>
+                  <input
+                    type="url"
+                    value={baseURL}
+                    onChange={(e) => setBaseURL(e.target.value)}
+                    placeholder="https://api.asmarket.id"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    API Key ASMarket{" "}
+                    {asmarket?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setAPIKey(e.target.value)}
+                      placeholder={
+                        asmarket?.api_key_configured
+                          ? "Kosongkan untuk mempertahankan API key saat ini"
+                          : "Masukkan API key ASMarket"
+                      }
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    className="rounded text-indigo-600"
+                  />
+                  <span>Aktifkan ASMarket</span>
+                </label>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={saveASMarket}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? "Menyimpan..." : "Simpan ASMarket"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* FFZSTORE MODAL CONTENT */}
             {selected.code.toUpperCase() === "FFZSTORE" && (
               <div className="space-y-4 text-xs">
@@ -985,7 +1096,8 @@ export default function ProvidersPage() {
             {selected.code.toUpperCase() !== "DIGIFLAZZ" &&
               selected.code.toUpperCase() !== "KIOSGAMER" &&
               selected.code.toUpperCase() !== "FFZSTORE" &&
-              selected.code.toUpperCase() !== "EXCELLENTSTORE" && (
+              selected.code.toUpperCase() !== "EXCELLENTSTORE" && 
+               selected.code.toUpperCase() !== "ASMARKET" && (
                 <div className="space-y-4 text-xs">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
