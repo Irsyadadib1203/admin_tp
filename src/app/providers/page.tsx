@@ -87,6 +87,7 @@ type VexagameSettings = {
   base_url: string;
   is_active: boolean;
   api_key_configured: boolean;
+  pin_configured: boolean;
    webhook_secret_configured: boolean; 
 };
 
@@ -151,6 +152,7 @@ export default function ProvidersPage() {
 
   // Vexagame State
   const [vexagame, setVexagame] = useState<VexagameSettings | null>(null);
+  const [vexagamePin, setVexagamePin] = useState(""); 
   const [vexagameWebhookSecret, setVexagameWebhookSecret] = useState("");
 
   // Kiosgamer States
@@ -255,7 +257,9 @@ export default function ProvidersPage() {
     setNotice("");
     setAPIKey("");
     setDigiSecret("");
-	setExcellentSecret("");
+	  setExcellentSecret("");
+    setVexagamePin("");
+    setVexagameWebhookSecret("");
     setName(item.name);
     setBaseURL(item.base_url);
     setIsActive(item.is_active);
@@ -429,10 +433,12 @@ export default function ProvidersPage() {
         name,
         base_url: baseURL,
         api_key: apiKey,
+        pin: vexagamePin,
         webhook_secret: vexagameWebhookSecret, 
         is_active: isActive,
       });
       setAPIKey("");
+      setVexagamePin("");
       setVexagameWebhookSecret("");
       const fresh = await api.get("/admin/providers/vexagame");
       setVexagame(fresh.data.data);
@@ -1030,6 +1036,18 @@ export default function ProvidersPage() {
                     <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                     <input type="password" value={apiKey} onChange={(e) => setAPIKey(e.target.value)}
                       placeholder={vexagame?.api_key_configured ? "Kosongkan untuk mempertahankan API key saat ini" : "Masukkan API key Vexagame"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    PIN Transaksi{" "}
+                    {vexagame?.pin_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={vexagamePin} onChange={(e) => setVexagamePin(e.target.value)}
+                      placeholder={vexagame?.pin_configured ? "Kosongkan untuk mempertahankan PIN saat ini" : "PIN akun Vexagame untuk membayar order"}
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
                   </div>
                 </div>
