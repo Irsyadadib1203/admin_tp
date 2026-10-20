@@ -91,6 +91,16 @@ type VexagameSettings = {
    webhook_secret_configured: boolean; 
 };
 
+type SIPASSettings = {
+  configured: boolean;
+  name: string;
+  base_url: string;
+  member_id: string;
+  is_active: boolean;
+  password_configured: boolean;
+  pin_configured: boolean;
+};
+
 type KiosgamerStatus = {
   configured: boolean;
   status: string;
@@ -154,6 +164,12 @@ export default function ProvidersPage() {
   const [vexagame, setVexagame] = useState<VexagameSettings | null>(null);
   const [vexagamePin, setVexagamePin] = useState(""); 
   const [vexagameWebhookSecret, setVexagameWebhookSecret] = useState("");
+
+  // SIPAS State
+  const [sipas, setSipas] = useState<SIPASSettings | null>(null);
+  const [sipasMemberId, setSipasMemberId] = useState("");
+  const [sipasPassword, setSipasPassword] = useState("");
+  const [sipasPin, setSipasPin] = useState("");
 
   // Kiosgamer States
   const [kiosStatus, setKiosStatus] = useState<KiosgamerStatus | null>(null);
@@ -260,6 +276,8 @@ export default function ProvidersPage() {
 	  setExcellentSecret("");
     setVexagamePin("");
     setVexagameWebhookSecret("");
+    setSipasPassword("");
+    setSipasPin("");
     setName(item.name);
     setBaseURL(item.base_url);
     setIsActive(item.is_active);
@@ -317,6 +335,18 @@ export default function ProvidersPage() {
         setVexagame(data);
         setName(data.name);
         setBaseURL(data.base_url);
+        setIsActive(data.is_active);
+      } catch {
+        // fallback
+      }
+      } else if (code === "SIPAS") {
+      try {
+        const res = await api.get("/admin/providers/sipas");
+        const data: SIPASSettings = res.data.data;
+        setSipas(data);
+        setName(data.name);
+        setBaseURL(data.base_url);
+        setSipasMemberId(data.member_id || "");
         setIsActive(data.is_active);
       } catch {
         // fallback
@@ -446,6 +476,31 @@ export default function ProvidersPage() {
       setNotice("Konfigurasi Vexagame tersimpan.");
     } catch (error: any) {
       setNotice(error.response?.data?.message || "Gagal menyimpan Vexagame.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveSIPAS = async () => {
+    setSaving(true);
+    setNotice("");
+    try {
+      await api.put("/admin/providers/sipas", {
+        name,
+        base_url: baseURL,
+        member_id: sipasMemberId,
+        password: sipasPassword,
+        pin: sipasPin,
+        is_active: isActive,
+      });
+      setSipasPassword("");
+      setSipasPin("");
+      const fresh = await api.get("/admin/providers/sipas");
+      setSipas(fresh.data.data);
+      await mutate();
+      setNotice("Konfigurasi SIPAS tersimpan.");
+    } catch (error: any) {
+      setNotice(error.response?.data?.message || "Gagal menyimpan SIPAS.");
     } finally {
       setSaving(false);
     }
@@ -1209,6 +1264,63 @@ export default function ProvidersPage() {
                 </div>
               </div>
             )}
+            {/* SIPAS MODAL CONTENT */}
+            {selected.code.toUpperCase() === "SIPAS" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100" />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Base URL SIPAS</label>
+                  <input type="url" value={baseURL} onChange={(e) => setBaseURL(e.target.value)}
+                    placeholder="https://h2h.kioson.my.id"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Member ID</label>
+                  <input value={sipasMemberId} onChange={(e) => setSipasMemberId(e.target.value)}
+                    placeholder="ID Member Mitra"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    Password H2H{" "}
+                    {sipas?.password_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={sipasPassword} onChange={(e) => setSipasPassword(e.target.value)}
+                      placeholder={sipas?.password_configured ? "Kosongkan untuk mempertahankan password saat ini" : "Masukkan Password H2H"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">
+                    PIN Trx{" "}
+                    {sipas?.pin_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                    <input type="password" value={sipasPin} onChange={(e) => setSipasPin(e.target.value)}
+                      placeholder={sipas?.pin_configured ? "Kosongkan untuk mempertahankan PIN saat ini" : "Masukkan PIN Trx"}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" />
+                  </div>
+                </div>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer">
+                  <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded text-indigo-600" />
+                  <span>Aktifkan SIPAS</span>
+                </label>
+                <div className="flex justify-end pt-2">
+                  <button onClick={saveSIPAS} disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition">
+                    <Save className="h-4 w-4" />
+                    {saving ? "Menyimpan..." : "Simpan SIPAS"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* OTHER / CUSTOM PROVIDER FALLBACK */}
             {selected.code.toUpperCase() !== "DIGIFLAZZ" &&
@@ -1216,7 +1328,8 @@ export default function ProvidersPage() {
               selected.code.toUpperCase() !== "FFZSTORE" &&
               selected.code.toUpperCase() !== "EXCELLENTSTORE" && 
                selected.code.toUpperCase() !== "ASMARKET" && 
-               selected.code.toUpperCase() !== "VEXAGAME" && (   
+               selected.code.toUpperCase() !== "VEXAGAME" &&
+               selected.code.toUpperCase() !== "SIPAS" && (  
                 <div className="space-y-4 text-xs">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
