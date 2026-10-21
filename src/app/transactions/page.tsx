@@ -62,6 +62,7 @@ export default function TransactionsPage() {
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [providerStatusFilter, setProviderStatusFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
+  const [gameFilter, setGameFilter] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -161,7 +162,7 @@ export default function TransactionsPage() {
   const [bulkModal, setBulkModal] = useState<{ isOpen: boolean; action: "retry" | "success" | "fail" | null; notes: string; isLoading: boolean }>({ isOpen: false, action: null, notes: "", isLoading: false });
   const [bulkResult, setBulkResult] = useState<any | null>(null);
 
-  useEffect(() => { setSelectedIds([]); }, [page, limit, providerFilter, providerStatusFilter, search, startDate, endDate]);
+  useEffect(() => { setSelectedIds([]); }, [page, limit, providerFilter, gameFilter, providerStatusFilter, search, startDate, endDate]);
 
   
   const queryParams = new URLSearchParams({
@@ -172,6 +173,9 @@ export default function TransactionsPage() {
 
   if (providerFilter) {
     queryParams.set("provider_id", providerFilter);
+  }
+  if (gameFilter) {
+    queryParams.set("game_id", gameFilter);
   }
   if (providerStatusFilter) {
     queryParams.set("provider_status", providerStatusFilter);
@@ -259,6 +263,14 @@ export default function TransactionsPage() {
   };
 
   const { data: providers } = useSWR("/admin/providers", (u: string) => api.get(u).then((r) => r.data.data));
+
+  // Daftar game untuk dropdown filter (diurutkan berdasarkan nama)
+  const { data: games } = useSWR("/admin/games?limit=500", (u: string) =>
+    api.get(u).then((r) => {
+      const list = Array.isArray(r.data?.data) ? r.data.data : [];
+      return [...list].sort((a: any, b: any) => String(a?.name || "").localeCompare(String(b?.name || "")));
+    })
+  );
 
 const getProviderName = (tx: any) =>
   tx?.provider?.name ||
@@ -443,6 +455,22 @@ const getProviderName = (tx: any) =>
           ))}
         </select>
           <select
+            value={gameFilter}
+            onChange={(e) => {
+              setGameFilter(e.target.value);
+              setPage(1);
+            }}
+            className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 max-w-[180px]"
+            aria-label="Filter game"
+          >
+            <option value="">Semua Game</option>
+            {games?.map((g: any) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <select
             value={providerStatusFilter}
             onChange={(e) => {
               setProviderStatusFilter(e.target.value);
@@ -510,6 +538,7 @@ const getProviderName = (tx: any) =>
           <button
             onClick={() => {
               setProviderFilter("");
+              setGameFilter("");
               setProviderStatusFilter("");
               setStartDate("");
               setEndDate("");
