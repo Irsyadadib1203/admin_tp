@@ -1054,6 +1054,12 @@ const getProviderName = (tx: any) =>
                 >
                   Provider Ref: {selectedTx.provider_ref_id || "-"}
                 </span>
+                <span
+                  className="text-slate-500 block truncate font-mono"
+                  title={selectedTx.provider_order_id}
+                >
+                  Provider Order ID: {selectedTx.provider_order_id || "-"}
+                </span>
               </div>
             </div>
 
