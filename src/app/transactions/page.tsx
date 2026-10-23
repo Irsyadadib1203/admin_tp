@@ -609,6 +609,11 @@ const getProviderName = (tx: any) =>
                             SN: {tx.sn}
                           </span>
                         )}
+                        {tx.provider_order_id && (
+                          <span className="text-[10px] font-mono text-sky-400 block truncate max-w-[160px]" title={tx.provider_order_id}>
+                            Order ID: {tx.provider_order_id}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
