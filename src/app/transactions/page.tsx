@@ -20,6 +20,7 @@ import {
   Zap,
   ExternalLink,
   Hash,
+  Shuffle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -161,6 +162,7 @@ export default function TransactionsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkModal, setBulkModal] = useState<{ isOpen: boolean; action: "retry" | "success" | "fail" | null; notes: string; isLoading: boolean }>({ isOpen: false, action: null, notes: "", isLoading: false });
   const [bulkResult, setBulkResult] = useState<any | null>(null);
+  const [bulkProviderModal, setBulkProviderModal] = useState<{ isOpen: boolean; isLoading: boolean }>({ isOpen: false, isLoading: false });
 
   useEffect(() => { setSelectedIds([]); }, [page, limit, providerFilter, gameFilter, providerStatusFilter, search, startDate, endDate]);
 
@@ -216,6 +218,36 @@ export default function TransactionsPage() {
     } catch (err: any) {
       setBulkModal((p) => ({ ...p, isLoading: false }));
       alert("Gagal menjalankan aksi massal: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Rehit Provider hanya bisa dilakukan jika SEMUA transaksi terpilih:
+  // - status processing
+  // - provider_status mengandung "pending" (case-insensitive)
+  // - belum punya providerOrderID (belum terkirim ke provider)
+  const canBulkRetryProvider = selectedIds.length > 0 && selectedIds.every((id) => {
+    const tx = transactions.find((t: any) => t.id === id);
+    if (!tx) return false;
+    const isProcessing = tx.status === "processing";
+    const isPending = (tx.provider_status || "").toLowerCase().includes("pending");
+    const noProviderOrder = !tx.provider_order_id || tx.provider_order_id === "" || tx.provider_order_id === "-";
+    return isProcessing && isPending && noProviderOrder;
+  });
+
+  const executeBulkRetryProvider = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkProviderModal((p) => ({ ...p, isLoading: true }));
+    try {
+      const res = await api.post("/admin/transactions/bulk-retry-provider", {
+        ids: selectedIds,
+      });
+      setBulkResult(res.data?.data);
+      setBulkProviderModal({ isOpen: false, isLoading: false });
+      setSelectedIds([]);
+      mutate();
+    } catch (err: any) {
+      setBulkProviderModal((p) => ({ ...p, isLoading: false }));
+      alert("Gagal menjalankan rehit provider: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -558,6 +590,7 @@ const getProviderName = (tx: any) =>
             <button onClick={() => openBulk("retry")} className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5" />Rehit</button>
             <button onClick={() => openBulk("success")} className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />Set Sukses</button>
             <button onClick={() => openBulk("fail")} className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" />Set Gagal</button>
+            <button onClick={() => setBulkProviderModal({ isOpen: true, isLoading: false })} disabled={!canBulkRetryProvider} className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed" title={canBulkRetryProvider ? "Alihkan transaksi ke provider yang aktif pada nominal masing-masing" : "Hanya bisa digunakan jika semua transaksi terpilih berstatus processing, provider_status pending, dan belum punya providerOrderID"}><Shuffle className="w-3.5 h-3.5" />Rehit Provider</button>
             <button onClick={() => setSelectedIds([])} className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Batal Pilih</button>
           </div>
         </div>
@@ -1154,6 +1187,36 @@ const getProviderName = (tx: any) =>
               <button onClick={() => setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false })} className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Batal</button>
               <button onClick={executeBulk} disabled={bulkModal.isLoading} className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-50">
                 {bulkModal.isLoading ? "Memproses..." : "Jalankan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Bulk Rehit Provider — konfirmasi rehit ke provider yang aktif pada nominal */}
+      {bulkProviderModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Shuffle className="w-4 h-4 text-amber-400" />
+              Rehit Provider ({selectedIds.length} transaksi)
+            </h3>
+            <p className="text-xs text-amber-300 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
+              Transaksi yang dipilih akan dialihkan dan diproses ulang ke provider yang saat ini aktif pada masing-masing nominal. Pastikan provider pada nominal produk sudah Anda ubah sebelum menjalankan aksi ini.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkProviderModal({ isOpen: false, isLoading: false })}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs"
+              >
+                Batal
+              </button>
+              <button
+                onClick={executeBulkRetryProvider}
+                disabled={bulkProviderModal.isLoading}
+                className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold disabled:opacity-50"
+              >
+                {bulkProviderModal.isLoading ? "Memproses..." : "Ya, Rehit Provider"}
               </button>
             </div>
           </div>

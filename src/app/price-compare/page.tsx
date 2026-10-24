@@ -121,119 +121,145 @@ export default function PriceComparePage() {
           {isLoading ? "Memuat data..." : "Belum ada nominal."}
         </div>
       ) : (
-        groups.map((group) => (
-          <div
-            key={group.id}
-            className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl"
-          >
-            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-white">{group.name}</h2>
-              <span className="text-[11px] text-slate-500">{group.items.length} nominal</span>
-            </div>
+        groups.map((group) => {
+          const itemsMeta = group.items.map((item) => {
+            const cells = providerList.map((p) => ({ p, cell: getCell(item, p.id) }));
+            const candidates = cells.filter((c) => c.cell && isProviderUsable(c.p));
+            const cheapest = candidates.length
+              ? Math.min(...candidates.map((c) => c.cell!.price))
+              : null;
+            const cheapestNames = candidates
+              .filter((c) => c.cell!.price === cheapest)
+              .map((c) => c.p.name);
+            const activeId = item.provider_id || item.provider?.id || 0;
+            const activeCell = cells.find((c) => c.p.id === activeId)?.cell || null;
+            const diff =
+              activeCell && cheapest !== null ? activeCell.price - cheapest : null;
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/40">
-                    <th className="py-3 px-4 min-w-[180px] sticky left-0 bg-slate-900 z-10">Nominal</th>
-                    {providerList.map((p) => (
-                      <th key={p.id} className="py-3 px-4 min-w-[140px]">
-                        <span className={isProviderUsable(p) ? "text-slate-200" : "text-slate-600"}>
-                          {p.name}
-                        </span>
-                        {!isProviderUsable(p) && (
-                          <span className="block text-[10px] font-normal text-slate-600">nonaktif</span>
-                        )}
+            return { item, cheapest, cheapestNames, activeId, diff };
+          });
+
+          return (
+            <div
+              key={group.id}
+              className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl"
+            >
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-white">{group.name}</h2>
+                <span className="text-[11px] text-slate-500">{group.items.length} nominal</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 bg-slate-950/40">
+                      <th className="py-3 px-4 min-w-[160px] sticky left-0 bg-slate-900 z-20 font-bold text-slate-200">
+                        Provider
                       </th>
-                    ))}
-                    <th className="py-3 px-4 min-w-[150px]">Termurah</th>
-                    <th className="py-3 px-4 min-w-[140px]">Selisih Aktif</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {group.items.map((item) => {
-                    const cells = providerList.map((p) => ({ p, cell: getCell(item, p.id) }));
-                    const candidates = cells.filter((c) => c.cell && isProviderUsable(c.p));
-                    const cheapest = candidates.length
-                      ? Math.min(...candidates.map((c) => c.cell!.price))
-                      : null;
-                    const cheapestNames = candidates
-                      .filter((c) => c.cell!.price === cheapest)
-                      .map((c) => c.p.name);
-                    const activeId = item.provider_id || item.provider?.id || 0;
-                    const activeCell = cells.find((c) => c.p.id === activeId)?.cell || null;
-                    const diff =
-                      activeCell && cheapest !== null ? activeCell.price - cheapest : null;
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`hover:bg-slate-800/20 transition-colors ${
-                          item.is_active ? "" : "opacity-50"
-                        }`}
-                      >
-                        <td className="py-3 px-4 sticky left-0 bg-slate-900 z-10">
-                          <span className="font-semibold text-white block">{item.name}</span>
+                      {group.items.map((item) => (
+                        <th key={item.id} className="py-3 px-4 min-w-[150px]">
+                          <span className="font-semibold text-slate-200 block">{item.name}</span>
                           {!item.is_active && (
-                            <span className="text-[10px] text-slate-500">nonaktif</span>
+                            <span className="block text-[10px] font-normal text-slate-500">nonaktif</span>
                           )}
-                        </td>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {providerList.map((p) => {
+                      const isUsable = isProviderUsable(p);
+                      return (
+                        <tr
+                          key={p.id}
+                          className={`hover:bg-slate-800/20 transition-colors ${
+                            isUsable ? "" : "opacity-60"
+                          }`}
+                        >
+                          {/* Samping: Nama Provider */}
+                          <td className="py-3 px-4 sticky left-0 bg-slate-900 z-10">
+                            <span className={`font-semibold block ${isUsable ? "text-white" : "text-slate-500"}`}>
+                              {p.name}
+                            </span>
+                            {!isUsable && (
+                              <span className="text-[10px] text-slate-500">nonaktif</span>
+                            )}
+                          </td>
 
-                        {cells.map(({ p, cell }) => {
-                          const isCheapest =
-                            !!cell && isProviderUsable(p) && cheapest !== null && cell.price === cheapest;
-                          const isActive = p.id === activeId;
-                          return (
-                            <td
-                              key={p.id}
-                              className={`py-3 px-4 ${
-                                isCheapest ? "bg-emerald-500/10" : ""
-                              }`}
-                            >
-                              {cell ? (
-                                <div>
+                          {/* Kolom per Nominal */}
+                          {itemsMeta.map(({ item, cheapest, activeId }) => {
+                            const cell = getCell(item, p.id);
+                            const isCheapest =
+                              !!cell && isUsable && cheapest !== null && cell.price === cheapest;
+                            const isActive = p.id === activeId;
+
+                            return (
+                              <td
+                                key={item.id}
+                                className={`py-3 px-4 ${
+                                  isCheapest ? "bg-emerald-500/10" : ""
+                                }`}
+                              >
+                                {cell ? (
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        className={`font-semibold ${
+                                          isCheapest ? "text-emerald-400" : "text-slate-200"
+                                        }`}
+                                      >
+                                        {formatRupiah(cell.price)}
+                                      </span>
+                                      {isActive && (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-semibold">
+                                          Aktif
+                                        </span>
+                                      )}
+                                    </div>
+                                    {cell.sku && (
+                                      <span
+                                        className="font-mono text-[10px] text-slate-500 block truncate max-w-[130px]"
+                                        title={cell.sku}
+                                      >
+                                        {cell.sku}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
                                   <div className="flex items-center gap-1.5">
-                                    <span
-                                      className={`font-semibold ${
-                                        isCheapest ? "text-emerald-400" : "text-slate-200"
-                                      }`}
-                                    >
-                                      {formatRupiah(cell.price)}
-                                    </span>
+                                    <span className="text-slate-600">—</span>
                                     {isActive && (
                                       <span className="px-1.5 py-0.5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-semibold">
                                         Aktif
                                       </span>
                                     )}
                                   </div>
-                                  {cell.sku && (
-                                    <span className="font-mono text-[10px] text-slate-500 block truncate max-w-[130px]" title={cell.sku}>
-                                      {cell.sku}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-slate-600">—</span>
-                                  {isActive && (
-                                    <span className="px-1.5 py-0.5 rounded-full bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-semibold">
-                                      Aktif
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
 
-                        <td className="py-3 px-4">
+                    {/* Baris Ringkasan: Termurah */}
+                    <tr className="border-t-2 border-slate-700 bg-slate-950/60 font-medium">
+                      <td className="py-3 px-4 sticky left-0 bg-slate-900 z-10">
+                        <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold">
+                          <Trophy className="w-3.5 h-3.5" /> Termurah
+                        </span>
+                      </td>
+                      {itemsMeta.map(({ item, cheapest, cheapestNames }) => (
+                        <td key={item.id} className="py-3 px-4">
                           {cheapest !== null ? (
                             <div>
-                              <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
-                                <Trophy className="w-3 h-3" />
+                              <span
+                                className="font-semibold text-emerald-400 block truncate max-w-[140px]"
+                                title={cheapestNames.join(", ")}
+                              >
                                 {cheapestNames.join(", ")}
                               </span>
-                              <span className="text-[10px] text-slate-500 block">
+                              <span className="text-[10px] text-slate-400 block">
                                 {formatRupiah(cheapest)}
                               </span>
                             </div>
@@ -241,26 +267,34 @@ export default function PriceComparePage() {
                             <span className="text-slate-600">—</span>
                           )}
                         </td>
+                      ))}
+                    </tr>
 
-                        <td className="py-3 px-4">
+                    {/* Baris Ringkasan: Selisih Aktif */}
+                    <tr className="bg-slate-950/40">
+                      <td className="py-3 px-4 sticky left-0 bg-slate-900 z-10 text-slate-400 font-semibold">
+                        Selisih Aktif
+                      </td>
+                      {itemsMeta.map(({ item, diff }) => (
+                        <td key={item.id} className="py-3 px-4">
                           {diff === null ? (
                             <span className="text-slate-600">—</span>
                           ) : diff > 0 ? (
-                            <span className="text-amber-300 font-semibold">
+                            <span className="text-amber-300 font-semibold block">
                               +{formatRupiah(diff)}
                             </span>
                           ) : (
-                            <span className="text-emerald-400 font-semibold">Sudah termurah</span>
+                            <span className="text-emerald-400 font-semibold block">Sudah termurah</span>
                           )}
                         </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

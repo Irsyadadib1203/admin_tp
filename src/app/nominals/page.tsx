@@ -761,26 +761,27 @@ const saveProviderProducts = async () => {
                         {getProviderBadge(item.provider, item.provider_id)}
                       </td>
                       <td className="py-3.5 px-3 font-mono text-slate-300">
+                    {(() => {
+                      const activeId = item.provider_id || item.provider?.id || 0;
+                      const activePP = Array.isArray(item.provider_products)
+                        ? item.provider_products.find((pp: any) => pp.provider_id === activeId)
+                        : null;
+                      // Fallback ke provider_product_code untuk data lama yang belum punya provider_products
+                      const activeSku = activePP?.product_code || item.provider_product_code || "—";
+                      const activeName = activePP?.provider?.name || item.provider?.name || `#${activeId}`;
+                      return (
                         <div className="space-y-0.5">
-                          {/* Tampilkan SKU dari provider_products (dinamis) */}
-                          {item.provider_products && item.provider_products.length > 0 ? (
-                            item.provider_products.map((pp: any) => (
-                              <span key={pp.id} className="block text-[10px] text-slate-400">
-                                <span className="text-slate-500">{pp.provider?.name || `#${pp.provider_id}`}:</span>{" "}
-                                <span className="text-slate-200">{pp.product_code || "—"}</span>
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400 block text-[10px]">
-                              Prov: {item.provider_product_code || "—"}
-                            </span>
-                          )}
+                          <span className="block text-[10px] text-slate-400">
+                            <span className="text-slate-500">{activeName}:</span>{" "}
+                            <span className="text-slate-200">{activeSku}</span>
+                          </span>
                           <span className="text-amber-400 font-medium text-[11px] block">
-                            H2H: {item.seller_product_code || item.provider_product_code || "—"}
+                            H2H: {item.seller_product_code || activeSku}
                           </span>
                         </div>
-                      </td>
-
+                      );
+                    })()}
+                  </td>
                       <td className="py-3.5 px-3 font-medium text-slate-400">
                         {formatRupiah(item.base_price)}
                       </td>
