@@ -745,15 +745,6 @@ const getProviderName = (tx: any) =>
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${checkingStatusTxId === tx.id ? "animate-spin" : ""}`} />
                         </button>
-                          {canRegenerateRef(tx.status) && (
-                          <button
-                            onClick={() => handleRegenRefPrompt(tx)}
-                            className="p-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 transition-colors"
-                            title="Regenerate ProviderRefID"
-                          >
-                            <Hash className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
