@@ -923,11 +923,11 @@ const getProviderName = (tx: any) =>
             </div>
 
             {/* Footer Note & Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
               <p className="text-[11px] text-slate-500">
                 Request dan respons terakhir disimpan otomatis tanpa credential provider.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   onClick={() => handleCheckStatus(responseModal.tx)}
                   disabled={checkingStatusTxId === responseModal.tx.id}
@@ -965,7 +965,7 @@ const getProviderName = (tx: any) =>
       {/* Transaction Detail Modal */}
       {selectedTx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
                 <h3 className="text-base font-bold text-white">Detail Transaksi</h3>
@@ -1064,11 +1064,13 @@ const getProviderName = (tx: any) =>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="pt-3 border-t border-slate-800 space-y-2.5">
+            {/* Baris 1: aksi baca / cek */}
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handleCheckStatus(selectedTx)}
                 disabled={checkingStatusTxId === selectedTx.id}
-                className="px-3.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 border border-sky-500/30"
+                className="whitespace-nowrap px-3.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 border border-sky-500/30"
                 title="Hanya mengambil status terbaru dari provider tanpa memotong saldo"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${checkingStatusTxId === selectedTx.id ? "animate-spin" : ""}`} />
@@ -1081,52 +1083,58 @@ const getProviderName = (tx: any) =>
                   setSelectedTx(null);
                   setResponseModal({ isOpen: true, tx, copied: false });
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-semibold flex items-center gap-1.5"
+                className="whitespace-nowrap px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-semibold flex items-center gap-1.5"
               >
                 <Code2 className="w-3.5 h-3.5 text-indigo-400" />
                 Lihat Response JSON
               </button>
+
               {canRegenerateRef(selectedTx.status) && (
                 <button
                   onClick={() => handleRegenRefPrompt(selectedTx)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/30"
+                  className="whitespace-nowrap px-3.5 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/30"
                 >
                   <Hash className="w-3.5 h-3.5" />
                   Regenerate Ref
                 </button>
               )}
-
-              {!["success", "refunded"].includes(selectedTx.status) && (
-                <>
-                  {canRetryTransaction(selectedTx.status) && (
+            </div>
+            {/* Baris 2: aksi yang mengubah transaksi + tutup */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
+                {!["success", "refunded"].includes(selectedTx.status) && (
+                  <>
+                    {canRetryTransaction(selectedTx.status) && (
+                      <button
+                        onClick={() => handleRetryPrompt(selectedTx)}
+                        className="whitespace-nowrap px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                      >
+                        Proses Ulang Order
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleRetryPrompt(selectedTx)}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                      onClick={() => handleSuccessPrompt(selectedTx)}
+                      className="whitespace-nowrap px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
                     >
-                      Proses Ulang Order
+                      Set Sukses Manual
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleSuccessPrompt(selectedTx)}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
-                  >
-                    Set Sukses Manual
-                  </button>
-                  <button
-                    onClick={() => handleRefundPrompt(selectedTx)}
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold"
-                  >
-                    Refund Saldo
-                  </button>
-                </>
-              )}
+                    <button
+                      onClick={() => handleRefundPrompt(selectedTx)}
+                      className="whitespace-nowrap px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold"
+                    >
+                      Refund Saldo
+                    </button>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => setSelectedTx(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium"
+                className="whitespace-nowrap px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
               >
                 Tutup
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
