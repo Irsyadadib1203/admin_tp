@@ -111,8 +111,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Sidebar Container */}
       <aside
-        className={`w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out md:translate-x-0 ${
-          isOpen ? "translate-x-0 shadow-2xl shadow-black/80" : "-translate-x-full"
+        className={`w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0 shadow-2xl shadow-black/80 md:shadow-none" : "-translate-x-full"
         }`}
       >
         {/* Brand header */}
@@ -139,11 +139,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </div>
           </div>
 
-          {/* Close button on mobile */}
+          {/* Close button */}
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden"
-            aria-label="Close menu"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            title="Tutup sidebar"
+            aria-label="Tutup sidebar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -160,7 +161,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={() => onClose?.()}
+                onClick={() => {
+                  if (typeof window !== "undefined" && window.innerWidth < 768) {
+                    onClose?.();
+                  }
+                }}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
                     ? isRoleItem

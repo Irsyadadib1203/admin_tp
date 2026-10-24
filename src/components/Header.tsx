@@ -7,9 +7,10 @@ import { getStoredUser, AdminUser } from "@/lib/auth";
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  sidebarOpen?: boolean;
 }
 
-export default function Header({ onMenuClick }: HeaderProps) {
+export default function Header({ onMenuClick, sidebarOpen }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<AdminUser | null>(null);
 
@@ -59,11 +60,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-30">
       <div className="flex items-center gap-3">
-        {/* Mobile Hamburger Button */}
+        {/* Toggle Sidebar Button */}
         <button
           onClick={onMenuClick}
-          className="p-2 -ml-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 md:hidden transition-colors"
-          aria-label="Open sidebar"
+          className="p-2 -ml-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
+          title={sidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
+          aria-label={sidebarOpen ? "Tutup sidebar" : "Buka sidebar"}
         >
           <Menu className="w-5 h-5" />
         </button>

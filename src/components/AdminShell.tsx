@@ -34,7 +34,37 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const router = useRouter();
   const [checked, setChecked] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
+      } else {
+        const saved = localStorage.getItem("topup_admin_sidebar_open");
+        if (saved !== null) {
+          setSidebarOpen(saved === "true");
+        }
+      }
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined" && window.innerWidth >= 768) {
+        localStorage.setItem("topup_admin_sidebar_open", String(next));
+      }
+      return next;
+    });
+  };
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      localStorage.setItem("topup_admin_sidebar_open", "false");
+    }
+  };
 
   const currentUser = getStoredUser();
   const isSuperAdmin = currentUser?.role === "superadmin";
@@ -100,11 +130,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <>
       <Sidebar
-        isOpen={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
+        isOpen={sidebarOpen}
+        onClose={closeSidebar}
       />
-      <div className="flex-1 flex flex-col pl-0 md:pl-64 min-h-screen">
-        <Header onMenuClick={() => setMobileSidebarOpen((prev) => !prev)} />
+      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
+        sidebarOpen ? "pl-0 md:pl-64" : "pl-0"
+      }`}>
+        <Header onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
         <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
           {isAccessDenied ? (
             <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl max-w-lg mx-auto mt-12 space-y-4 shadow-xl">
