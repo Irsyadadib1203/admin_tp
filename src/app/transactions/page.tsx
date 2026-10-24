@@ -754,34 +754,6 @@ const getProviderName = (tx: any) =>
                             <Hash className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {!["success", "refunded"].includes(tx.status) && (
-                          <>
-                            {/* Tombol 2: Proses Ulang (Kirim Order Baru) */}
-                            {canRetryTransaction(tx.status) && (
-                              <button
-                                onClick={() => handleRetryPrompt(tx)}
-                                className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 transition-colors"
-                                title="Proses Ulang (Kirim Order Baru ke Provider)"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleSuccessPrompt(tx)}
-                              className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition-colors"
-                              title="Set Sukses Manual"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleRefundPrompt(tx)}
-                              className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 transition-colors"
-                              title="Refund Saldo"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>
