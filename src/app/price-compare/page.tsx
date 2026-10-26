@@ -21,6 +21,15 @@ export default function PriceComparePage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
 
   const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
+  const sortedGames = useMemo(
+  () =>
+      Array.isArray(games)
+        ? [...games].sort((a: any, b: any) =>
+            String(a.name || "").localeCompare(String(b.name || ""), "id", { sensitivity: "base" })
+          )
+        : [],
+    [games]
+  );
   const { data: providers } = useSWR("/admin/providers", fetcher);
   const {
     data: resData,
@@ -84,7 +93,7 @@ export default function PriceComparePage() {
             className="bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
           >
             <option value="">Semua Game</option>
-            {(games || []).map((g: any) => (
+            {sortedGames.map((g: any) => (
               <option key={g.id} value={g.id}>
                 {g.name}
               </option>

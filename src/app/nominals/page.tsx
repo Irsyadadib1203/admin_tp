@@ -74,10 +74,10 @@ export default function NominalsPage() {
   const [selectedGame, setSelectedGame] = useState<string>("");
   const [selectedProvider, setSelectedProvider] = useState<string>("");
     const [statusFilter, setStatusFilter] = useState<"" | "true" | "false">("");
-  const [sortBy, setSortBy] = useState<"" | "name" | "base_price">("");
+  const [sortBy, setSortBy] = useState<"" | "name" | "base_price">("base_price");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Klik 1: naik, klik 2: turun, klik 3: kembali ke urutan default
+  // Klik 1: naik, klik 2: turun, klik 3: kembali ke default (harga termurah)
   const toggleSort = (key: "name" | "base_price") => {
     if (sortBy !== key) {
       setSortBy(key);
@@ -85,7 +85,7 @@ export default function NominalsPage() {
     } else if (sortDir === "asc") {
       setSortDir("desc");
     } else {
-      setSortBy("");
+      setSortBy("base_price");
       setSortDir("asc");
     }
     setPage(1);
@@ -164,6 +164,11 @@ export default function NominalsPage() {
 
 
   const { data: games } = useSWR("/admin/games?limit=1000", fetcher);
+  const sortedGames = Array.isArray(games)
+  ? [...games].sort((a: any, b: any) =>
+      String(a.name || "").localeCompare(String(b.name || ""), "id", { sensitivity: "base" })
+    )
+  : [];
   const { data: providers } = useSWR("/admin/providers", fetcher);
   const {
     data: resData,
@@ -624,7 +629,7 @@ const saveProviderProducts = async () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="">Semua Game</option>
-              {games?.map((g: any) => (
+              {sortedGames.map((g: any) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
                 </option>
