@@ -274,6 +274,8 @@ export default function ProvidersPage() {
     setAPIKey("");
     setDigiSecret("");
 	  setExcellentSecret("");
+    setExcellent(null);
+    setAsmarket(null);
     setVexagamePin("");
     setVexagameWebhookSecret("");
     setSipasPassword("");
@@ -306,9 +308,9 @@ export default function ProvidersPage() {
       } catch {
         // fallback
       }
-    } else if (code === "EXCELLENTSTORE") {
+    } else if (code === "EXCELLENTSTORE" || code === "MUMTAZSHOP") {
       try {
-        const res = await api.get("/admin/providers/excellentstore");
+        const res = await api.get(`/admin/providers/${code.toLowerCase()}`);
         const data: ExcellentStoreSettings = res.data.data;
         setExcellent(data);
         setName(data.name);
@@ -317,9 +319,9 @@ export default function ProvidersPage() {
       } catch {
         // fallback
       }
-    } else if (code === "ASMARKET") {
+    } else if (code === "ASMARKET" || code === "BOSTGAME") {
       try {
-        const res = await api.get("/admin/providers/asmarket");
+        const res = await api.get(`/admin/providers/${code.toLowerCase()}`);
         const data: ASMarketSettings = res.data.data;
         setAsmarket(data);
         setName(data.name);
@@ -414,7 +416,8 @@ export default function ProvidersPage() {
     setSaving(true);
     setNotice("");
     try {
-      await api.put("/admin/providers/excellentstore", {
+      const code = (selected?.code || "EXCELLENTSTORE").toLowerCase();
+      await api.put(`/admin/providers/${code}`, {
         name,
         base_url: baseURL,
         api_key: apiKey,
@@ -423,12 +426,12 @@ export default function ProvidersPage() {
       });
       setAPIKey("");
       setExcellentSecret("");
-      const fresh = await api.get("/admin/providers/excellentstore");
+     const fresh = await api.get(`/admin/providers/${code}`);
       setExcellent(fresh.data.data);
       await mutate();
-      setNotice("Konfigurasi ExcellentStore tersimpan.");
+     setNotice(`Konfigurasi ${selected?.name || "provider"} tersimpan.`);
     } catch (error: any) {
-      setNotice(error.response?.data?.message || "Gagal menyimpan ExcellentStore.");
+      setNotice(error.response?.data?.message || `Gagal menyimpan ${selected?.name || "provider"}.`);
     } finally {
       setSaving(false);
     }
@@ -438,19 +441,20 @@ export default function ProvidersPage() {
     setSaving(true);
     setNotice("");
     try {
-      await api.put("/admin/providers/asmarket", {
+      const code = (selected?.code || "ASMARKET").toLowerCase();
+      await api.put(`/admin/providers/${code}`, {
         name,
         base_url: baseURL,
         api_key: apiKey,
         is_active: isActive,
       });
       setAPIKey("");
-      const fresh = await api.get("/admin/providers/asmarket");
+      const fresh = await api.get(`/admin/providers/${code}`);
       setAsmarket(fresh.data.data);
       await mutate();
-      setNotice("Konfigurasi ASMarket tersimpan.");
+      setNotice(`Konfigurasi ${selected?.name || "provider"} tersimpan.`);
     } catch (error: any) {
-      setNotice(error.response?.data?.message || "Gagal menyimpan ASMarket.");
+      setNotice(error.response?.data?.message || `Gagal menyimpan ${selected?.name || "provider"}.`);
     } finally {
       setSaving(false);
     }
@@ -1057,14 +1061,14 @@ export default function ProvidersPage() {
             )}
 
             {/* EXCELLENTSTORE MODAL CONTENT */}
-            {selected.code.toUpperCase() === "EXCELLENTSTORE" && (
+           {["EXCELLENTSTORE", "MUMTAZSHOP"].includes(selected.code.toUpperCase()) && (
               <div className="space-y-4 text-xs">
                 <div><label className="block text-slate-300 font-medium mb-1">Nama Provider</label><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100" /></div>
-                <div><label className="block text-slate-300 font-medium mb-1">Base URL ExcellentStore</label><input type="url" value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://.../api/v1" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" /></div>
-                <div><label className="block text-slate-300 font-medium mb-1">API Key {excellent?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}</label><div className="relative"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" /><input type="password" value={apiKey} onChange={(e) => setAPIKey(e.target.value)} placeholder={excellent?.api_key_configured ? "Kosongkan untuk mempertahankan API key" : "Masukkan API key ExcellentStore"} className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" /></div></div>
+                <div><label className="block text-slate-300 font-medium mb-1">Base URL {selected.name}</label><input type="url" value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://.../api/v1" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100" /></div>
+                <div><label className="block text-slate-300 font-medium mb-1">API Key {excellent?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}</label><div className="relative"><KeyRound className="absolute left-3 top-3 h-4 w-4 text-slate-500" /><input type="password" value={apiKey} onChange={(e) => setAPIKey(e.target.value)} placeholder={excellent?.api_key_configured ? "Kosongkan untuk mempertahankan API key" : `Masukkan API key ${selected.name}`} className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" /></div></div>
                 <div><label className="block text-slate-300 font-medium mb-1">Webhook Secret {excellent?.secret_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}</label><div className="relative"><ShieldCheck className="absolute left-3 top-3 h-4 w-4 text-slate-500" /><input type="password" value={excellentSecret} onChange={(e) => setExcellentSecret(e.target.value)} placeholder={excellent?.secret_configured ? "Kosongkan untuk mempertahankan secret" : "Masukkan webhook secret"} className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100" /></div></div>
-                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded text-indigo-600" /><span>Aktifkan ExcellentStore</span></label>
-                <div className="flex justify-end pt-2"><button onClick={saveExcellentStore} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition"><Save className="h-4 w-4" /> {saving ? "Menyimpan..." : "Simpan ExcellentStore"}</button></div>
+                <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded text-indigo-600" /><span>Aktifkan {selected.name}</span></label>
+                <div className="flex justify-end pt-2"><button onClick={saveExcellentStore} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition"><Save className="h-4 w-4" /> {saving ? "Menyimpan..." : `Simpan ${selected.name}`}</button></div>
               </div>
             )}
 
@@ -1133,7 +1137,7 @@ export default function ProvidersPage() {
             )}
 
             {/* ASMARKET MODAL CONTENT */}
-            {selected.code.toUpperCase() === "ASMARKET" && (
+            {["ASMARKET", "BOSTGAME"].includes(selected.code.toUpperCase()) && (
               <div className="space-y-4 text-xs">
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
@@ -1145,19 +1149,23 @@ export default function ProvidersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Base URL ASMarket</label>
+                 <label className="block text-slate-300 font-medium mb-1">Base URL {selected.name}</label>
                   <input
                     type="url"
                     value={baseURL}
                     onChange={(e) => setBaseURL(e.target.value)}
-                    placeholder="https://api.asmarket.id"
+                    placeholder={
+                      selected.code.toUpperCase() === "BOSTGAME"
+                        ? "https://api.bostgame.com"
+                        : "https://api.asmarket.id"
+                    }
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100"
                   />
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
-                    API Key ASMarket{" "}
+                    API Key {selected.name}{" "}
                     {asmarket?.api_key_configured && <span className="text-emerald-400">(sudah tersimpan)</span>}
                   </label>
                   <div className="relative">
@@ -1169,12 +1177,17 @@ export default function ProvidersPage() {
                       placeholder={
                         asmarket?.api_key_configured
                           ? "Kosongkan untuk mempertahankan API key saat ini"
-                          : "Masukkan API key ASMarket"
+                          : `Masukkan API key ${selected.name}`
                       }
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-10 pr-3 font-mono text-slate-100"
                     />
                   </div>
                 </div>
+                {selected.code.toUpperCase() === "BOSTGAME" && (
+                  <p className="text-[11px] text-slate-500">
+                    Signature callback BostGame (X-Signature) divalidasi memakai API key di atas, jadi tidak perlu webhook secret terpisah.
+                  </p>
+                )}
 
                 <label className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200 cursor-pointer">
                   <input
@@ -1183,7 +1196,7 @@ export default function ProvidersPage() {
                     onChange={(e) => setIsActive(e.target.checked)}
                     className="rounded text-indigo-600"
                   />
-                  <span>Aktifkan ASMarket</span>
+                  <span>Aktifkan {selected.name}</span>
                 </label>
 
                 <div className="flex justify-end pt-2">
@@ -1193,7 +1206,7 @@ export default function ProvidersPage() {
                     className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60 transition"
                   >
                     <Save className="h-4 w-4" />
-                    {saving ? "Menyimpan..." : "Simpan ASMarket"}
+                    {saving ? "Menyimpan..." : `Simpan ${selected.name}`}
                   </button>
                 </div>
               </div>
@@ -1327,6 +1340,8 @@ export default function ProvidersPage() {
               selected.code.toUpperCase() !== "KIOSGAMER" &&
               selected.code.toUpperCase() !== "FFZSTORE" &&
               selected.code.toUpperCase() !== "EXCELLENTSTORE" && 
+              selected.code.toUpperCase() !== "MUMTAZSHOP" &&
+              selected.code.toUpperCase() !== "BOSTGAME" &&
                selected.code.toUpperCase() !== "ASMARKET" && 
                selected.code.toUpperCase() !== "VEXAGAME" &&
                selected.code.toUpperCase() !== "SIPAS" && (  
