@@ -276,6 +276,10 @@ export default function ProvidersPage() {
 	  setExcellentSecret("");
     setExcellent(null);
     setAsmarket(null);
+    setFFZ(null);
+    setDigi(null);
+    setVexagame(null);
+    setSipas(null);
     setVexagamePin("");
     setVexagameWebhookSecret("");
     setSipasPassword("");
@@ -319,7 +323,7 @@ export default function ProvidersPage() {
       } catch {
         // fallback
       }
-    } else if (code === "ASMARKET" || code === "BOSTGAME") {
+    } else if (["ASMARKET", "BOSTGAME", "EXCELLSTORE"].includes(code)) {
       try {
         const res = await api.get(`/admin/providers/${code.toLowerCase()}`);
         const data: ASMarketSettings = res.data.data;
@@ -1137,7 +1141,7 @@ export default function ProvidersPage() {
             )}
 
             {/* ASMARKET MODAL CONTENT */}
-            {["ASMARKET", "BOSTGAME"].includes(selected.code.toUpperCase()) && (
+            {["ASMARKET", "BOSTGAME","EXCELLSTORE"].includes(selected.code.toUpperCase()) && (
               <div className="space-y-4 text-xs">
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">Nama Provider</label>
@@ -1155,9 +1159,11 @@ export default function ProvidersPage() {
                     value={baseURL}
                     onChange={(e) => setBaseURL(e.target.value)}
                     placeholder={
-                      selected.code.toUpperCase() === "BOSTGAME"
-                        ? "https://api.bostgame.com"
-                        : "https://api.asmarket.id"
+                      {
+                        BOSTGAME: "https://api.bostgame.com",
+                        EXCELLSTORE: "https://excellstore.id/api",
+                        ASMARKET: "https://api.asmarket.id",
+                      }[selected.code.toUpperCase()] ?? ""
                     }
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 font-mono text-slate-100"
                   />
@@ -1343,6 +1349,7 @@ export default function ProvidersPage() {
               selected.code.toUpperCase() !== "MUMTAZSHOP" &&
               selected.code.toUpperCase() !== "BOSTGAME" &&
                selected.code.toUpperCase() !== "ASMARKET" && 
+               selected.code.toUpperCase() !== "EXCELLSTORE" &&
                selected.code.toUpperCase() !== "VEXAGAME" &&
                selected.code.toUpperCase() !== "SIPAS" && (  
                 <div className="space-y-4 text-xs">
