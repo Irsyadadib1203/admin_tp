@@ -62,6 +62,7 @@ export default function GamesPage() {
     user_id_label: "User ID",
     zone_id_label: "Zone ID / Server",
     nickname_check_code: "MOBILE_LEGENDS",
+    code: "",
   });
 
   const { data: resData, mutate, isLoading } = useSWR(
@@ -88,6 +89,7 @@ export default function GamesPage() {
       user_id_label: "User ID",
       zone_id_label: "Zone ID / Server",
       nickname_check_code: "MOBILE_LEGENDS",
+      code: "",
     });
     setIsModalOpen(true);
   };
@@ -108,6 +110,7 @@ export default function GamesPage() {
       user_id_label: game.user_id_label || "User ID",
       zone_id_label: game.zone_id_label || "Zone ID / Server",
       nickname_check_code: game.nickname_check_code || "",
+      code: game.code || "",
     });
     setIsModalOpen(true);
   };
@@ -231,6 +234,9 @@ export default function GamesPage() {
                         <div>
                           <p className="font-semibold text-white text-sm">{g.name}</p>
                           <p className="text-[11px] text-slate-500">/{g.slug}</p>
+                          <p className="text-[11px] text-slate-500">
+                            /{g.slug}{g.code ? <span className="ml-2 text-amber-400 font-mono">[{g.code}]</span> : null}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -402,6 +408,25 @@ export default function GamesPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1 flex items-center justify-between">
+                    <span>Kode Game</span>
+                    <span className="text-[10px] text-slate-500 font-mono">token {"{game_code}"}</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    placeholder="Contoh: ML"
+                    value={formData.code}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-amber-300 font-mono text-xs focus:outline-none focus:border-indigo-500"
+                  />
                 </div>
 
                 <div>
