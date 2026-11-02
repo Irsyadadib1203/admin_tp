@@ -233,7 +233,6 @@ export default function GamesPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-white text-sm">{g.name}</p>
-                          <p className="text-[11px] text-slate-500">/{g.slug}</p>
                           <p className="text-[11px] text-slate-500">
                             /{g.slug}{g.code ? <span className="ml-2 text-amber-400 font-mono">[{g.code}]</span> : null}
                           </p>
