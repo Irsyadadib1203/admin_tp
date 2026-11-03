@@ -410,11 +410,13 @@ export default function GamesPage() {
                 </div>
                 <div>
                   <label className="block text-slate-300 font-medium mb-1 flex items-center justify-between">
-                    <span>Kode Game</span>
+                    <span>Kode Game *</span>
                     <span className="text-[10px] text-slate-500 font-mono">token {"{game_code}"}</span>
                   </label>
                   <input
                     type="text"
+                    required
+                    minLength={2}
                     maxLength={10}
                     placeholder="Contoh: ML"
                     value={formData.code}
