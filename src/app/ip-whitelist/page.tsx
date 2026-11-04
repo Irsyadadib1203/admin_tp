@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import {
   ShieldCheck,
@@ -441,9 +442,10 @@ export default function IPWhitelistPage() {
       )}
 
       {/* Modal Add Whitelist */}
-      {isAddModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {isAddModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
@@ -505,13 +507,15 @@ export default function IPWhitelistPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Block IP Manual */}
-      {isBlockModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {isBlockModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setIsBlockModalOpen(false)}
         >
           <div
@@ -588,7 +592,8 @@ export default function IPWhitelistPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal - Delete Whitelist IP */}

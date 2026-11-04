@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import {
   Shield,
@@ -758,9 +759,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Detail Payload Modal */}
-      {selectedLog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {selectedLog &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setSelectedLog(null)}
         >
           <div
@@ -797,7 +799,8 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

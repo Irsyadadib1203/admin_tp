@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import Link from "next/link";
 import {
@@ -807,9 +808,10 @@ export default function ProvidersPage() {
       </div>
 
       {/* Modal Kelola Provider */}
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+      {selected &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setSelected(null)}
         >
           <div
@@ -1422,7 +1424,8 @@ export default function ProvidersPage() {
                 </div>
               )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

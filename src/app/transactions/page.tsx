@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import {
   Receipt,
@@ -773,9 +774,10 @@ const getProviderName = (tx: any) =>
       </div>
 
       {/* Response Provider JSON Modal */}
-      {responseModal.isOpen && responseModal.tx && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+      {responseModal.isOpen && responseModal.tx &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setResponseModal({ isOpen: false, tx: null, copied: false })}
         >
           <div
@@ -968,13 +970,15 @@ const getProviderName = (tx: any) =>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Transaction Detail Modal */}
-      {selectedTx && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {selectedTx &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setSelectedTx(null)}
         >
           <div
@@ -1153,12 +1157,14 @@ const getProviderName = (tx: any) =>
             </div>
           </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {bulkModal.isOpen && bulkModal.action && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {bulkModal.isOpen && bulkModal.action &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => {
             if (!bulkModal.isLoading) setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false });
           }}
@@ -1196,13 +1202,15 @@ const getProviderName = (tx: any) =>
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal: Bulk Rehit Provider — konfirmasi rehit ke provider yang aktif pada nominal */}
-      {bulkProviderModal.isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {bulkProviderModal.isOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => {
             if (!bulkProviderModal.isLoading) setBulkProviderModal({ isOpen: false, isLoading: false });
           }}
@@ -1244,12 +1252,14 @@ const getProviderName = (tx: any) =>
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {bulkResult && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+      {bulkResult &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setBulkResult(null)}
         >
           <div
@@ -1279,7 +1289,8 @@ const getProviderName = (tx: any) =>
             </div>
             <div className="flex justify-end"><button onClick={() => setBulkResult(null)} className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs">Tutup</button></div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal - Retry Provider */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import {
   Flame,
@@ -615,9 +616,10 @@ export default function KiosgamerCenterPage() {
       </div>
 
       {/* Modal Katalog Resmi Kiosgamer */}
-      {isCatalogModalOpen && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+      {isCatalogModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setIsCatalogModalOpen(false)}
         >
           <div
@@ -685,7 +687,8 @@ export default function KiosgamerCenterPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal */}
