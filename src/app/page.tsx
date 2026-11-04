@@ -13,8 +13,9 @@ import {
   RefreshCw,
   ShieldCheck,
   ArrowUpRight,
+  Radio,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 import Link from "next/link";
 
 const fetcher = (url: string) => api.get(url).then((res) => res.data.data);
@@ -26,11 +27,67 @@ export default function DashboardPage() {
     { refreshInterval: 15000 }
   );
 
-  const { data: recentTxs, mutate: refreshTxs } = useSWR(
-    "/transactions/recent?limit=8",
+  // Initial load via REST; SSE handles live updates thereafter
+  const { data: initialTxs, mutate: refreshTxs } = useSWR(
+    "/admin/dashboard/recent-transactions?limit=20",
     fetcher,
-    { refreshInterval: 10000 }
+    { refreshInterval: 0 }
   );
+
+  const [liveTxs, setLiveTxs] = useState<any[] | null>(null);
+  const [sseConnected, setSseConnected] = useState(false);
+
+  // Merge: use live state once available, otherwise fall back to REST data
+  const recentTxs = liveTxs ?? initialTxs;
+
+  // Seed live state from SWR on first fetch
+  useEffect(() => {
+    if (initialTxs && liveTxs === null) {
+      setLiveTxs(initialTxs);
+    }
+  }, [initialTxs, liveTxs]);
+
+  // SSE connection — real-time transaction push from backend
+  useEffect(() => {
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("topup_admin_token")
+        : null;
+    if (!token) return;
+
+    const url = `${API_BASE_URL}/admin/dashboard/stream?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+
+    es.onopen = () => setSseConnected(true);
+
+    es.onmessage = (e) => {
+      try {
+        const evt = JSON.parse(e.data);
+        if (evt.type === "tx_update" && evt.payload) {
+          setLiveTxs((prev) => {
+            const base = prev ?? [];
+            // Bring updated tx to top, deduplicate by id, keep 20 max
+            const updated = [
+              evt.payload,
+              ...base.filter((t: any) => t.id !== evt.payload.id),
+            ];
+            return updated.slice(0, 20);
+          });
+        }
+      } catch {
+        // ignore malformed SSE events
+      }
+    };
+
+    es.onerror = () => {
+      setSseConnected(false);
+    };
+
+    return () => {
+      es.close();
+      setSseConnected(false);
+    };
+  }, []);
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -64,6 +121,13 @@ export default function DashboardPage() {
             <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
             Segarkan Data
           </button>
+          {/* SSE live connection indicator */}
+          {sseConnected && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
+              <Radio className="w-3 h-3 animate-pulse" />
+              Live
+            </span>
+          )}
           <Link
             href="/kiosgamer"
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-lg shadow-indigo-600/20 transition-all"
@@ -172,7 +236,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white">Digiflazz H2H Sync</h4>
-              <p className="text-xs text-slate-400">Tarik katalog & atur markup harga</p>
+              <p className="text-xs text-slate-400">Tarik katalog &amp; atur markup harga</p>
             </div>
           </div>
           <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors" />
@@ -204,7 +268,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white">Persetujuan Deposit</h4>
-              <p className="text-xs text-slate-400">Verifikasi saldo member & reseller</p>
+              <p className="text-xs text-slate-400">Verifikasi saldo member &amp; reseller</p>
             </div>
           </div>
           <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition-colors" />
@@ -215,8 +279,14 @@ export default function DashboardPage() {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-semibold text-white">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
               Transaksi Terkini (Live Feed)
+              {sseConnected && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LIVE
+                </span>
+              )}
             </h3>
             <p className="text-xs text-slate-400">
               Transaksi top-up game yang baru saja diproses oleh engine
