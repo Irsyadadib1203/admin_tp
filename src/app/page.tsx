@@ -47,44 +47,72 @@ export default function DashboardPage() {
     }
   }, [initialTxs, liveTxs]);
 
-  // SSE connection — real-time transaction push from backend
+  // SSE connection — real-time transaction push from backend.
+  // Uses a reconnect loop with backoff so the live feed survives
+  // server restarts or brief network hiccups without a page refresh.
   useEffect(() => {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("topup_admin_token")
-        : null;
-    if (!token) return;
+    let es: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 2000; // start at 2 s, cap at 30 s
+    let destroyed = false;
 
-    const url = `${API_BASE_URL}/admin/dashboard/stream?token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
+    function connect() {
+      if (destroyed) return;
 
-    es.onopen = () => setSseConnected(true);
-
-    es.onmessage = (e) => {
-      try {
-        const evt = JSON.parse(e.data);
-        if (evt.type === "tx_update" && evt.payload) {
-          setLiveTxs((prev) => {
-            const base = prev ?? [];
-            // Bring updated tx to top, deduplicate by id, keep 20 max
-            const updated = [
-              evt.payload,
-              ...base.filter((t: any) => t.id !== evt.payload.id),
-            ];
-            return updated.slice(0, 20);
-          });
-        }
-      } catch {
-        // ignore malformed SSE events
+      const token = localStorage.getItem("topup_admin_token");
+      if (!token) {
+        // Not logged in yet — retry in 2 s
+        retryTimeout = setTimeout(connect, 2000);
+        return;
       }
-    };
 
-    es.onerror = () => {
-      setSseConnected(false);
-    };
+      const url = `${API_BASE_URL}/admin/dashboard/stream?token=${encodeURIComponent(token)}`;
+      es = new EventSource(url);
+
+      es.onopen = () => {
+        setSseConnected(true);
+        retryDelay = 2000; // reset backoff on successful connect
+      };
+
+      es.onmessage = (e) => {
+        try {
+          const evt = JSON.parse(e.data);
+          if (evt.type === "tx_update" && evt.payload) {
+            setLiveTxs((prev) => {
+              const base = prev ?? [];
+              // Newest tx at top, deduplicate by id, max 20
+              const updated = [
+                evt.payload,
+                ...base.filter((t: any) => t.id !== evt.payload.id),
+              ];
+              return updated.slice(0, 20);
+            });
+          }
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      es.onerror = () => {
+        setSseConnected(false);
+        es?.close();
+        es = null;
+        if (!destroyed) {
+          // Exponential backoff reconnect (max 30 s)
+          retryTimeout = setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 1.5, 30000);
+            connect();
+          }, retryDelay);
+        }
+      };
+    }
+
+    connect();
 
     return () => {
-      es.close();
+      destroyed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      es?.close();
       setSseConnected(false);
     };
   }, []);
