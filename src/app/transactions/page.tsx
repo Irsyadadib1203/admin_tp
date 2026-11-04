@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Hash,
   Shuffle,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -773,8 +774,14 @@ const getProviderName = (tx: any) =>
 
       {/* Response Provider JSON Modal */}
       {responseModal.isOpen && responseModal.tx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setResponseModal({ isOpen: false, tx: null, copied: false })}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-3">
@@ -804,10 +811,12 @@ const getProviderName = (tx: any) =>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setResponseModal({ isOpen: false, tx: null, copied: false })}
                 className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                title="Tutup"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -964,8 +973,14 @@ const getProviderName = (tx: any) =>
 
       {/* Transaction Detail Modal */}
       {selectedTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setSelectedTx(null)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
                 <h3 className="text-base font-bold text-white">Detail Transaksi</h3>
@@ -981,10 +996,12 @@ const getProviderName = (tx: any) =>
                 </a>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedTx(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                title="Tutup"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1140,11 +1157,29 @@ const getProviderName = (tx: any) =>
       )}
 
       {bulkModal.isOpen && bulkModal.action && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-bold text-white">
-              {bulkModal.action === "retry" ? "Rehit" : bulkModal.action === "success" ? "Set Sukses Manual" : "Set Gagal Manual"} ({selectedIds.length} transaksi)
-            </h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => {
+            if (!bulkModal.isLoading) setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false });
+          }}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white">
+                {bulkModal.action === "retry" ? "Rehit" : bulkModal.action === "success" ? "Set Sukses Manual" : "Set Gagal Manual"} ({selectedIds.length} transaksi)
+              </h3>
+              <button
+                type="button"
+                disabled={bulkModal.isLoading}
+                onClick={() => setBulkModal({ isOpen: false, action: null, notes: "", isLoading: false })}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <p className="text-xs text-amber-300 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
               {bulkModal.action === "retry" && "Rehit hanya mengirim ulang jika pesanan belum pernah sampai ke provider. Jika sudah ada order di provider, sistem hanya mengecek statusnya."}
               {bulkModal.action === "success" && "SN dibuat otomatis: (nickname/ID). RefId : (invoice). Pastikan barang benar-benar sudah terkirim."}
@@ -1166,12 +1201,30 @@ const getProviderName = (tx: any) =>
 
       {/* Modal: Bulk Rehit Provider — konfirmasi rehit ke provider yang aktif pada nominal */}
       {bulkProviderModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Shuffle className="w-4 h-4 text-amber-400" />
-              Rehit Provider ({selectedIds.length} transaksi)
-            </h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => {
+            if (!bulkProviderModal.isLoading) setBulkProviderModal({ isOpen: false, isLoading: false });
+          }}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Shuffle className="w-4 h-4 text-amber-400" />
+                Rehit Provider ({selectedIds.length} transaksi)
+              </h3>
+              <button
+                type="button"
+                disabled={bulkProviderModal.isLoading}
+                onClick={() => setBulkProviderModal({ isOpen: false, isLoading: false })}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <p className="text-xs text-amber-300 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 leading-relaxed">
               Transaksi yang dipilih akan dialihkan dan diproses ulang ke provider yang saat ini aktif pada masing-masing nominal. Pastikan provider pada nominal produk sudah Anda ubah sebelum menjalankan aksi ini.
             </p>
@@ -1195,9 +1248,26 @@ const getProviderName = (tx: any) =>
       )}
 
       {bulkResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-3">
-            <h3 className="text-base font-bold text-white">Hasil Aksi Massal: {bulkResult.succeeded} berhasil, {bulkResult.failed} gagal/dilewati</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setBulkResult(null)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-3 my-auto max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white">
+                Hasil Aksi Massal: {bulkResult.succeeded} berhasil, {bulkResult.failed} gagal/dilewati
+              </h3>
+              <button
+                type="button"
+                onClick={() => setBulkResult(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <div className="max-h-72 overflow-y-auto divide-y divide-slate-800 text-xs">
               {bulkResult.results?.map((r: any) => (
                 <div key={r.id} className="py-2 flex items-start gap-2">

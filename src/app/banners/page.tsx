@@ -12,6 +12,7 @@ import {
   ToggleLeft,
   ToggleRight,
   AlertCircle,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -263,11 +264,26 @@ export default function BannersPage() {
       {/* Modal Add/Edit Banner */}
       {isModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-bold text-white">
-                {editingBanner ? "Edit Banner: " + editingBanner.title : "Tambah Banner Baru"}
-              </h3>
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+            onClick={() => setIsModalOpen(false)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-lg font-bold text-white">
+                  {editingBanner ? "Edit Banner: " + editingBanner.title : "Tambah Banner Baru"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
               <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
                 {/* Image URL + Live Preview */}

@@ -40,12 +40,12 @@ export default function DashboardPage() {
   // Merge: use live state once available, otherwise fall back to REST data
   const recentTxs = liveTxs ?? initialTxs;
 
-  // Seed live state from SWR on first fetch
+  // Sync live state from SWR whenever initial fetch or manual refresh happens
   useEffect(() => {
-    if (initialTxs && liveTxs === null) {
+    if (initialTxs) {
       setLiveTxs(initialTxs);
     }
-  }, [initialTxs, liveTxs]);
+  }, [initialTxs]);
 
   // SSE connection — real-time transaction push from backend.
   // Uses a reconnect loop with backoff so the live feed survives
