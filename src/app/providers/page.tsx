@@ -259,7 +259,12 @@ export default function ProvidersPage() {
     setNotice("");
     try {
       const res = await api.put("/admin/settings/transaction-reference", reference);
-      await mutateReference(res.data.data, false);
+      // Merge response with existing tokens so the token chip list is never undefined
+      const saved = res.data.data;
+      await mutateReference(
+        { ...saved, tokens: saved.tokens ?? reference.tokens ?? [] },
+        false
+      );
       setNotice("Format invoice dan ref ID global tersimpan.");
     } catch (error: any) {
       setNotice(error.response?.data?.message || "Gagal menyimpan format global.");
@@ -653,7 +658,7 @@ export default function ProvidersPage() {
           </label>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
-          {reference.tokens.map((token) => (
+          {(reference.tokens ?? []).map((token) => (
             <button
               key={token}
               type="button"
