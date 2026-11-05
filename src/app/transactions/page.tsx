@@ -665,7 +665,7 @@ const getProviderName = (tx: any) =>
                         {tx.server_id ? ` (${tx.server_id})` : ""}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        {tx.nickname || tx.payment_method}
+                        {tx.user?.name || tx.user?.username || tx.user?.email || "Guest"}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-100">
