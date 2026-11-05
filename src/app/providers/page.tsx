@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import useSWR from "swr";
 import Link from "next/link";
@@ -126,6 +126,19 @@ export default function ProvidersPage() {
       onSuccess: () => setLastRefreshedAt(new Date()),
     }
   );
+  const sortedProviders = useMemo(() => {
+    if (!providers) return [];
+    const isShell = (p: ProviderItem) => p.balance_unit?.toUpperCase() === "SHELL";
+    return [...providers].sort((a, b) => {
+      // Provider ber-satuan Shell (Kiosgamer) tidak sebanding dengan Rupiah,
+      // jadi ditaruh paling bawah dan diurutkan di antara sesamanya.
+      const unitDiff = Number(isShell(a)) - Number(isShell(b));
+      if (unitDiff !== 0) return unitDiff;
+      const diff = (b.balance ?? 0) - (a.balance ?? 0);
+      if (diff !== 0) return diff;
+      return a.name.localeCompare(b.name);
+    });
+  }, [providers]);
   const { data: refData, mutate: mutateReference } = useSWR<Reference>(
     "/admin/settings/transaction-reference",
     fetcher
@@ -734,7 +747,7 @@ export default function ProvidersPage() {
 
       {/* Provider Cards with Balance */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {providers?.map((item) => (
+        {sortedProviders.map((item) => (
           <div key={item.id} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-start justify-between">
